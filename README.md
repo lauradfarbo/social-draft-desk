@@ -2,6 +2,14 @@
 
 Runs your weekly LinkedIn calendar, drafts every post and learns from your edits. You approve and post. For founder-led teams with no marketing hire. Packaged as an installable Claude plugin.
 
+<table align="center">
+  <tr>
+    <td align="center" width="500">
+      <video src="https://github.com/user-attachments/assets/eab79701-3fe6-4c5e-970b-4febc6d4fadc" controls></video>
+    </td>
+  </tr>
+</table>
+
 ## Who this is for
 
 Early-stage founders and scaleups with two to ten people, a warm audience that needs to stay warm, and nobody whose job is marketing. The founders already know what to say. What they lack is the time to plan it, write it, check it and keep it consistent every week.
