@@ -1,0 +1,31 @@
+{
+ "values": [
+  [
+   "Date added",
+   "From",
+   "For",
+   "Fact",
+   "Link",
+   "Used in",
+   "Add to facts sheet?"
+  ],
+  [
+   "09 MAR 26",
+   "Notes on W11-02",
+   "W11-02",
+   "Most sites we audit report monthly, not half-hourly.",
+   "",
+   "",
+   ""
+  ],
+  [
+   "10 MAR 26",
+   "Ideas row 4",
+   "Site audit topic",
+   "The site audit module covers up to 40 meters per site.",
+   "",
+   "",
+   "Yes"
+  ]
+ ]
+}

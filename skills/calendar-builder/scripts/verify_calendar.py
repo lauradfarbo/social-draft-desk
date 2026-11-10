@@ -18,6 +18,13 @@ workspace.json (every key optional):
 row_regex must have groups for week (1), weekday (2), day and month (3) and AM or PM (5).
 stop_regex matches lines that end a row's wrapped text (a repeated table header, a totals line).
 
+The plan numbers its weeks 1, 2, 3 and so on; the calendar holds the calendar (ISO) week of each Date in
+Week and in the Row ID (W{iso week:02d}-{seq:02d}). Plan week 1 starts on plan.week1_monday, or on the
+Monday of the first row's week when that key is missing. For each row the script checks that the plan
+week maps to the ISO week of the calendar Date, that Week equals that ISO week, and that the Row ID
+starts with W{iso week:02d}-. Backup rows (Row ID ending -FB, Status Fallback post) are not in the plan
+and are left out of the comparison.
+
 Checks week, weekday, date, AM/PM, content type and title for every row, in order. Prints one line per
 mismatch and the count. Exit 0 if there are none, 1 if there are mismatches, 2 on a usage or input
 error. Writes nothing and fixes nothing.
@@ -200,7 +207,15 @@ def main(argv):
         sys.stderr.write(f"Calendar header is missing: {', '.join(missing)}\n")
         return 2
     col = {h: n for n, h in enumerate(hdr)}
-    sheet = [r for r in values[1:] if cell(r, col["Date"])]
+    status_i = col.get("Status")
+    sheet = [r for r in values[1:] if cell(r, col["Date"]) and not cell(r, col["Row ID"]).upper().endswith("-FB")
+             and cell(r, status_i) != "Fallback post"]
+    w1 = (cfg.get("plan") or {}).get("week1_monday")
+    try:
+        week1 = date.fromisoformat(w1) if w1 else None
+    except ValueError:
+        sys.stderr.write(f"plan.week1_monday '{w1}' is not a YYYY-MM-DD date.\n")
+        return 2
 
     print(f"Plan rows parsed: {len(plan)}; calendar rows: {len(sheet)}")
     issues = 0
@@ -221,8 +236,14 @@ def main(argv):
             wk = int(float(wk))
         except ValueError:
             pass
+        iso = d.isocalendar()[1] if d else None
+        if week1 is None and d is not None:
+            week1 = d - timedelta(days=d.weekday()) - timedelta(weeks=p["week"] - 1)
+        plan_iso = (week1 + timedelta(weeks=p["week"] - 1)).isocalendar()[1] if week1 else p["week"]
         checks = {
-            "week": (p["week"], wk),
+            "week (plan order)": (plan_iso, iso),
+            "Week column": (iso, wk),
+            "Row ID week": (f"W{iso:02d}-" if iso else "", cell(s, col["Row ID"])[:4]),
             "weekday": (p["dow"], DAYS[d.weekday()] if d else cell(s, col["Date"])),
             "date": (p["date"], f"{d.day} {MONTHS[d.month - 1]}" if d else cell(s, col["Date"])),
             "AM/PM": (p["ampm"], cell(s, col["AM/PM"])),

@@ -1,11 +1,12 @@
 {
-  "_note": "Fictional example for Brightwell Analytics (energy reporting software for facilities managers). Input for scripts/build_calendar.py. Week and Row ID are derived from plan.week1_monday (2026-03-02) when left out.",
+  "_note": "Fictional example for Brightwell Analytics (energy reporting software for facilities managers). Input for scripts/build_calendar.py. Week is the calendar (ISO) week of the Date and Row IDs are W{iso week:02d}-{seq:02d}, derived when left out. A Fallback post row needs Row ID <original>-FB and sits directly under its original.",
   "rows": [
     {"date": "2026-03-03", "ampm": "", "content_type": "Partner Win", "channel": "LinkedIn", "title": "Partner news (to confirm)", "spec": "LinkedIn post, 120 to 180 words, one real photo", "status": "Posted", "sources": "Brightwell Plan Rules 1.0; Proof log", "proof_item": "Proof log row 2"},
     {"date": "2026-03-04", "ampm": "AM", "content_type": "Blog 1 - Publish", "channel": "Website", "title": "Three numbers to check before you build an energy report", "spec": "Blog article, 800 to 1,000 words", "status": "Posted", "sources": "Energy Reporting Without the Spreadsheet ch2; Brightwell Plan Rules 1.0"},
     {"date": "2026-03-04", "ampm": "PM", "content_type": "Blog 1 - LinkedIn teaser", "channel": "LinkedIn", "title": "The 22:00 report problem and how facilities managers fix it", "spec": "LinkedIn post, 80 to 120 words, link in first comment", "status": "Posted", "sources": "Energy Reporting Without the Spreadsheet ch2; Brightwell Plan Rules 1.0"},
     {"date": "2026-03-05", "ampm": "", "content_type": "Industry POV", "channel": "LinkedIn", "title": "Why energy reporting belongs with facilities managers, not finance", "spec": "LinkedIn post, 150 to 200 words", "status": "Posted", "sources": "Energy Reporting Without the Spreadsheet ch1; Brightwell Plan Rules 1.0"},
     {"date": "2026-03-10", "ampm": "", "content_type": "Customer Proof", "channel": "LinkedIn", "title": "Customer story (to confirm)", "spec": "LinkedIn post, 120 to 180 words, one real photo", "status": "Planned", "missing": "Proof log sign-off for a customer story", "sources": "Brightwell Plan Rules 1.0; Proof log"},
+    {"date": "2026-03-10", "ampm": "", "content_type": "Industry POV", "channel": "LinkedIn", "title": "What a facilities manager checks first in a new building", "spec": "LinkedIn post, 150 to 200 words", "status": "Fallback post", "row_id": "W11-01-FB", "notes": "Agents 09 MAR 26: backup for W11-01 while the customer story waits for sign-off.", "sources": "Energy Reporting Without the Spreadsheet ch1; Brightwell Plan Rules 1.0"},
     {"date": "2026-03-12", "ampm": "", "content_type": "Poll", "channel": "LinkedIn", "title": "How long does your monthly energy report take?", "spec": "LinkedIn poll, four options, runs one week", "status": "Planned", "visual": "None needed (LinkedIn renders the poll)", "sources": "Brightwell Plan Rules 1.0"},
     {"date": "2026-03-13", "ampm": "", "content_type": "Newsletter", "channel": "LinkedIn", "title": "March: meter data you already have", "spec": "LinkedIn newsletter, 600 to 900 words", "status": "Planned", "sources": "Energy Reporting Without the Spreadsheet ch3; Brightwell Plan Rules 1.0"},
     {"date": "2026-03-17", "ampm": "", "content_type": "Partner Win", "channel": "LinkedIn", "title": "Partner news (to confirm)", "spec": "LinkedIn post, 120 to 180 words, one real photo", "status": "Planned", "missing": "Proof log sign-off for partner news", "sources": "Brightwell Plan Rules 1.0; Proof log"},
@@ -20,7 +21,14 @@
     {"milestone": "Brightwell site audit module", "type": "Product", "start": "2026-05-12", "end": "", "confirmed": "No", "notes": "Date to confirm with Tom Adeyemi.", "rows_proposed": ""}
   ],
   "ideas": [
-    {"idea": "Poll: who owns the energy report in your building?", "added_by": "Priya Nair", "date_added": "2026-03-02", "wanted_by": "", "link": "", "status": "Scheduled", "calendar_row": "W02-02", "agent_note": "Proposed for 12 MAR 26."},
+    {"idea": "Poll: who owns the energy report in your building?", "added_by": "Priya Nair", "date_added": "2026-03-02", "wanted_by": "", "link": "", "status": "Scheduled", "calendar_row": "W11-02", "agent_note": "Proposed for 12 MAR 26."},
     {"idea": "Behind the scenes: how we test meter imports", "added_by": "Tom Adeyemi", "date_added": "2026-03-06", "wanted_by": "2026-04-02", "link": "", "status": "", "calendar_row": "", "agent_note": ""}
+  ],
+  "backlog": [
+    {"date": "", "ampm": "", "content_type": "Advisory board announcement", "channel": "LinkedIn", "title": "Welcoming our first advisory board member", "spec": "LinkedIn post, 120 to 180 words, headshot", "status": "Backlog", "row_id": "W14-01", "notes": "Sam Ortega: keep for later, maybe 2/6/26.", "missing": "Advisory proof log item with sign-off", "sources": "Brightwell Plan Rules 1.0; Proof log", "moved": "2026-03-16", "was_dated": "2026-04-01"},
+    {"date": "", "ampm": "", "content_type": "Partner recruitment", "channel": "LinkedIn", "title": "Looking for metering installers to partner with", "spec": "LinkedIn post, 120 to 180 words, one graphic", "status": "Backlog", "row_id": "W14-02", "notes": "", "sources": "Brightwell Plan Rules 1.0", "moved": "2026-03-24", "was_dated": "2026-04-03"}
+  ],
+  "approver_notes": [
+    {"date_added": "2026-03-09", "from": "Notes on W11-02", "for": "W11-02", "fact": "Most sites we audit report monthly, not half-hourly.", "link": "", "used_in": "W11-02", "add_to_facts": ""}
   ]
 }

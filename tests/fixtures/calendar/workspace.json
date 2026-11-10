@@ -2,26 +2,117 @@
   "schema_version": "1.0",
   "company": {
     "name": "Brightwell Analytics",
-    "approver": {"name": "Sam Ortega", "role": "Head of Operations"},
-    "people": ["Sam Ortega", "Priya Nair", "Tom Adeyemi"],
+    "approver": {
+      "name": "Sam Ortega",
+      "role": "Head of Operations"
+    },
+    "people": [
+      "Sam Ortega",
+      "Priya Nair",
+      "Tom Adeyemi"
+    ],
     "timezone": "Europe/London",
     "holiday_market": "UK"
   },
-  "writing": {"competitors": ["examplecorp", "metermate"]},
+  "writing": {
+    "competitors": [
+      "examplecorp",
+      "metermate"
+    ]
+  },
   "calendar": {
     "team_owned_regex": "Publish|Newsletter|Distribute",
-    "proof_types": {"Partner": "Partner Win", "Customer": "Customer Proof"},
-    "proof_placeholders": {"Partner Win": "Partner news (to confirm)", "Customer Proof": "Customer story (to confirm)"},
+    "proof_types": {
+      "Partner": "Partner Win",
+      "Customer": "Customer Proof",
+      "Advisor": "Advisory board announcement"
+    },
+    "proof_placeholders": {
+      "Partner Win": "Partner news (to confirm)",
+      "Customer Proof": "Customer story (to confirm)"
+    },
     "teaser_regex": "LinkedIn teaser",
-    "statuses": ["Proposed", "Planned", "Draft ready", "Approved", "Posted", "Cancelled"]
+    "statuses": [
+      "Proposed",
+      "Planned",
+      "Draft ready",
+      "Fallback post",
+      "Approved",
+      "Posted",
+      "Cancelled",
+      "Backlog"
+    ],
+    "agent_statuses": [
+      "Proposed",
+      "Draft ready",
+      "Fallback post"
+    ],
+    "request_columns": [
+      "Date",
+      "What to post",
+      "Pillar",
+      "Channel",
+      "Title / angle",
+      "Content type",
+      "Spec"
+    ],
+    "week_numbering": "iso",
+    "alternation_anchor_week": {
+      "year": 2026,
+      "week": 1
+    },
+    "tabs": {
+      "calendar": "Calendar",
+      "backlog": "Backlog",
+      "ideas": "Ideas",
+      "milestones": "Milestones",
+      "approver_notes": "From the approver's notes",
+      "agent_log": "Agent log",
+      "approver_edits": "Approver edits",
+      "agent_snapshot": "Agent snapshot",
+      "this_week": "This Week",
+      "how_to_use": "How to use"
+    }
   },
   "plan": {
     "week1_monday": "2026-03-02",
-    "posts_per_week": [2, 4],
-    "proof_slot": {"weekday": "Tue", "odd_weeks": "Partner Win", "even_weeks": "Customer Proof"},
-    "blog_pair": {"weekday": "Wed", "weeks": "odd"},
-    "rotation_slot": {"weekday": "Thu", "types": ["Industry POV", "Poll", "Guide push"]},
-    "pdf": {"stop_regex": "^\\s*(Wk\\s+Date\\b|\\d+ dated line items)"}
+    "posts_per_week": [
+      2,
+      4
+    ],
+    "proof_slot": {
+      "weekday": "Tue",
+      "odd_weeks": "Partner Win",
+      "even_weeks": "Customer Proof"
+    },
+    "blog_pair": {
+      "weekday": "Wed",
+      "weeks": "odd"
+    },
+    "rotation_slot": {
+      "weekday": "Thu",
+      "types": [
+        "Industry POV",
+        "Poll",
+        "Guide push"
+      ]
+    },
+    "pdf": {
+      "stop_regex": "^\\s*(Wk\\s+Date\\b|\\d+ dated line items)"
+    }
   },
-  "swaps": {"source_label": "Guide"}
+  "swaps": {
+    "source_label": "Guide"
+  },
+  "dates": {
+    "typed_order": "day_first"
+  },
+  "requests": {
+    "enabled": true,
+    "from": [
+      "approver"
+    ],
+    "series_drop_word": "drop",
+    "hold_lift_word": "CONFIRMED"
+  }
 }

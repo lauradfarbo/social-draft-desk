@@ -1,27 +1,18 @@
 # Changelog
 
-## 1.0.0 (21 OCT 26)
+## 1.0.0 (10 NOV 26)
 
-First release as an installable plugin.
+First public release.
 
-Added:
-
-- `.claude-plugin/plugin.json`, `commands/`, `agents/`.
-- `workspace-setup` skill and `/setup-workspace` command: opening interview that points every agent at the client's sources (Google Drive, Notion, GitHub, SharePoint, local folder or URL), and `check_workspace.py`.
-- `workspace.json` config (`docs/workspace-config.md`, `templates/workspace.example.json`): all client rules, locations and cadence in one file.
-- `weekly-orchestrator` skill and `/weekly-run` command, with the `planner`, `drafter`, `proof-drafter` and `compliance-checker` subagents.
-- `short-form-drafter` and `proof-intake` skills.
-- Column lock, Row ID guard and read-back verify on every calendar write; tab guard on Ideas and Milestones.
-- Shadow mode, missed-run recovery, same-day rerun stop, evergreen swaps with fallback drafts, visual no-repeat window.
-- `templates/chapter-map.md`.
-- Tests with fictional fixtures (`tests/`).
-
-Changed:
-
-- `calendar-builder`: 22-column schema with This Week, Ideas, Milestones and How to use tabs; Cancelled status; ideas and milestone runs; offline builder and verify script updated.
-- `docs/agent-standards.md`: one-writer rule, guarded writes, Cancelled handling, claims and proof, config checks.
-- US spelling throughout the repo.
-
-## 0.1.0
-
-`brand-voice-guide` and the first `calendar-builder`.
+- `/setup-workspace`: points every agent at the client's calendar, rules, voice guide, facts sheet, proof log, long-form source, assets and folders (Google Drive, Notion, GitHub, SharePoint, a local folder or a URL) and writes `workspace.json`.
+- `brand-voice-guide`: builds the voice guide every drafter writes against.
+- `calendar-builder`: converts an approved plan into a rolling 13-week calendar; monthly, milestone and idea rows are added as proposals.
+- `/weekly-run`: the weekly full run (plan check, one drafter per post, independent compliance check, one redraft, guarded calendar writes, read-back, brief) and a light weekday requests run.
+- Plain-word direction: asks in Notes, on the Ideas tab or by editing a row are acted on, with one Notes line saying what changed.
+- Always drafts: missing details become [bracketed] gaps listed in What's missing.
+- Backup rows (`Fallback post`), a Backlog tab, short Notes with an Agent log, ISO week Row IDs, series posts kept in order.
+- Learning from the approver's edits, with monthly voice guide proposals for approval.
+- Proof posts only from signed-off proof log items; the approver's word as sign-off is an option, off by default.
+- Shadow mode, TEST copies and missed-run recovery.
+- Docs: runbook, troubleshooting, change guide, go-live checklist, config reference, agent standards.
+- Tests with a fictional company (Brightwell Analytics).

@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
-"""Row guard for writes to the Ideas and Milestones tabs (calendar builder).
+"""Row guard for writes to the Ideas, Milestones and approver's notes tabs (calendar builder).
 
 Usage:
   python3 tab_guard.py before.json fresh.json writes.json --key "Idea (one line)" [--config workspace.json]
   python3 tab_guard.py before.json fresh.json writes.json --key "Milestone" [--config workspace.json]
+  python3 tab_guard.py before.json fresh.json writes.json --key "Date added" [--config workspace.json]
 
-before.json: the tab (Ideas A1:H or Milestones A1:G) as read at the start of the run, saved exactly as
-             returned ({"values": [[headers], [row2], ...]} or a bare list of rows).
+--key "Date added" guards the "From the approver's notes" tab (key Date added, checked cell Fact).
+
+before.json: the tab (Ideas A1:H, Milestones A1:G or the approver's notes tab A1:G) as read at the start
+             of the run, saved exactly as returned ({"values": [[headers], [row2], ...]} or a bare list).
 fresh.json:  the same range read again just before writing, saved the same way.
 writes.json: [{"row": 5, "col": "Status", "value": "Scheduled"}, ...]  (col is the header name)
 
 Someone may delete, insert or sort rows on these tabs while a run is in progress. For each write the
 script checks that, on that row, the key cell (the Idea text, or the Milestone name), the status cell
-(Ideas Status, or Milestones Confirmed) and the target cell are the same in fresh.json as in
+(Ideas Status, Milestones Confirmed, or the approver's Fact) and the target cell are the same in fresh.json as in
 before.json. If they are, the write is accepted with its exact range. If not, every write on that row
 is skipped (a row is written in full or not at all), with one plain line per row for the weekly brief
 (for example a person set Declined or Cancelled during the run). The tab name comes from --key, so a
 write can never land on the wrong tab. The builder writes only the accepted ranges.
 
-Optional config: calendar.tabs in workspace.json renames the tabs or columns, for example
-  {"ideas": {"tab": "Ideas", "key": "Idea (one line)", "status": "Status"},
-   "milestones": {"tab": "Milestones", "key": "Milestone", "status": "Confirmed"}}
-A missing key uses these defaults.
+Optional config: calendar.tabs in workspace.json renames the tabs, for example
+  {"ideas": "Ideas", "milestones": "Milestones", "approver_notes": "From the approver's notes"}
+A value may also be an object that renames the columns too:
+  {"ideas": {"tab": "Ideas", "key": "Idea (one line)", "status": "Status"}}
+A missing key uses these defaults. A tab name with a space or quote is quoted in the range
+('From the approver''s notes'!F3).
 
 Prints {"accepted": [{"range", "value"}], "skipped": [{"row", "col", "reason"}], "brief_lines": [...]}.
 Exit 0 if every write was accepted, 1 if anything was skipped, 2 on a usage or input error.
@@ -33,6 +38,7 @@ import sys
 DEFAULT_TABS = {
     "ideas": {"tab": "Ideas", "key": "Idea (one line)", "status": "Status"},
     "milestones": {"tab": "Milestones", "key": "Milestone", "status": "Confirmed"},
+    "approver_notes": {"tab": "From the approver's notes", "key": "Date added", "status": "Fact"},
 }
 
 
@@ -54,7 +60,15 @@ def tab_map(config_path):
         for k in tabs:
             if isinstance(custom.get(k), dict):
                 tabs[k].update({kk: vv for kk, vv in custom[k].items() if vv})
+            elif isinstance(custom.get(k), str) and custom[k].strip():
+                tabs[k]["tab"] = custom[k].strip()
     return {v["key"]: (v["tab"], v["status"]) for v in tabs.values()}
+
+
+def sheet_ref(tab):
+    if tab.replace("_", "").isalnum():
+        return tab
+    return "'" + tab.replace("'", "''") + "'"
 
 
 def col_letter(i):
@@ -137,7 +151,7 @@ def main(argv):
         if row in bad_rows:
             skipped.append({**w, "reason": bad_rows[row] + "."})
             continue
-        acc.append({"range": f"{tab}!{col_letter(hdr.index(col))}{row}", "value": w.get("value", "")})
+        acc.append({"range": f"{sheet_ref(tab)}!{col_letter(hdr.index(col))}{row}", "value": w.get("value", "")})
     print(json.dumps({"accepted": acc, "skipped": skipped, "brief_lines": lines}, indent=2, ensure_ascii=False))
     return 1 if skipped else 0
 

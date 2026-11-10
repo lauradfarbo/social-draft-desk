@@ -1,6 +1,6 @@
 [
  {"row": 10, "col": "Status", "value": "Draft ready", "check": "pass", "by": "orchestrator"},
- {"row": 10, "col": "Draft URL", "value": "https://docs.example.com/d/TEST-drafts-002?tab=t.w0401", "by": "orchestrator"},
+ {"row": 10, "col": "Draft URL", "value": "https://docs.example.com/d/TEST-drafts-002?tab=t.w1301", "by": "orchestrator"},
  {"row": 10, "col": "Visual", "value": "Use: dashboard-hero.png (Brand Assets/Product)", "by": "orchestrator"},
  {"row": 10, "col": "Notes", "value": "Orchestrator 16 MAR 26: Drafted; visual changed to avoid a repeat.", "by": "orchestrator"},
  {"row": 4, "col": "Title / angle", "value": "Partner news: Northgate Facilities", "by": "proof intake"},

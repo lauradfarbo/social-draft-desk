@@ -7,6 +7,13 @@ Usage:
 doc.json: the Docs read_doc response, saved as returned.
 Prints the tab text above the dashed line ("----------"), trailing blank lines removed,
 exactly as the approver left it. Exit 1 if the tab or the dashed line is missing.
+
+When the reviewer notes below the dashed line hold both image prompt lines
+("Image prompt (edit this ...): <text>" and "Image prompt as drafted ...: <text>"), it also prints
+image_prompt (as the approver left it) and image_prompt_original, so edit_capture.py --prompts can
+learn from the approver's prompt edits.
+
+Prints {"tab_id", "final_text"[, "image_prompt", "image_prompt_original"]}.
 """
 import json
 import re
@@ -36,7 +43,13 @@ def main(argv):
         print(json.dumps({"error": "dashed line not found"}))
         return 1
     final = ("\n" + text).split("\n----------\n")[0][1:].rstrip("\n ")
-    print(json.dumps({"tab_id": tab_id, "final_text": final}, ensure_ascii=False))
+    out = {"tab_id": tab_id, "final_text": final}
+    notes = ("\n" + text).split("\n----------\n", 1)[1]
+    m1 = re.search(r"^Image prompt \(edit this[^:]*:[ \t]*(.*)$", notes, re.M)
+    m2 = re.search(r"^Image prompt as drafted[^:]*:[ \t]*(.*)$", notes, re.M)
+    if m1 and m2:
+        out["image_prompt"], out["image_prompt_original"] = m1.group(1).strip(), m2.group(1).strip()
+    print(json.dumps(out, ensure_ascii=False))
     return 0
 
 

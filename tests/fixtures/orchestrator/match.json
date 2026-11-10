@@ -1,4 +1,4 @@
 {"slots": [
-  {"row": 4, "row_id": "W03-01", "action": "flag", "propose_swap": true, "reason": "Signed-off item cannot go public until 20 MAR 26."},
-  {"row": 11, "row_id": "W04-02", "action": "flag", "propose_swap": false, "reason": "No signed-off customer item."}
+  {"row": 4, "row_id": "W12-01", "action": "flag", "propose_swap": true, "reason": "Signed-off item cannot go public until 20 MAR 26."},
+  {"row": 11, "row_id": "W13-02", "action": "flag", "propose_swap": false, "reason": "No signed-off customer item."}
 ]}

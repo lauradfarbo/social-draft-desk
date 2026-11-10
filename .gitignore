@@ -19,3 +19,7 @@ __pycache__/
 # Generated test output
 *.xlsx
 out/
+
+# Client config never enters the repo (fixtures under tests/ are fictional)
+/workspace.json
+/weekly/

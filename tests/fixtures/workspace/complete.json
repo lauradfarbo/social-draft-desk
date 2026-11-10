@@ -1,0 +1,429 @@
+{
+  "schema_version": "1.0",
+  "updated": "2026-03-02",
+  "company": {
+    "name": "Brightwell Analytics",
+    "hashtag": "#Brightwell",
+    "approver": {
+      "name": "Sam Ortega",
+      "role": "Head of Operations"
+    },
+    "people": [
+      "Sam Ortega",
+      "Priya Nair",
+      "Tom Adeyemi"
+    ],
+    "people_first_mention": {
+      "Priya": "Priya Nair, co-founder"
+    },
+    "timezone": "Europe/London",
+    "holiday_market": "UK"
+  },
+  "channels": [
+    "LinkedIn"
+  ],
+  "run": {
+    "full_run": {
+      "weekday": "Monday",
+      "time": "12:30"
+    },
+    "requests_runs": {
+      "weekdays": [
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday"
+      ],
+      "time": "06:00"
+    },
+    "weekday": "Monday",
+    "horizon_days": 13,
+    "plan_check_weeks": 4,
+    "swap_days": 5,
+    "max_fallbacks": 4,
+    "default_mode": "test"
+  },
+  "dates": {
+    "typed_order": "day_first"
+  },
+  "sources": {
+    "rules": {
+      "kind": "doc",
+      "platform": "google_drive",
+      "live": "FIXTURE-001",
+      "test": null,
+      "title": "Brightwell Rules 1.0",
+      "expect_phrase": "End of rules",
+      "note": "Wins over every other file."
+    },
+    "plan_rules": {
+      "kind": "doc",
+      "platform": "notion",
+      "live": "FIXTURE-002",
+      "test": null,
+      "title": "Brightwell Plan Rules 1.0",
+      "expect_phrase": "Dependencies"
+    },
+    "voice_guide": {
+      "kind": "doc",
+      "platform": "github",
+      "live": "brightwell/brand/voice-guide.md",
+      "test": null,
+      "title": "Brightwell LinkedIn Voice Guide v1.0",
+      "expect_phrase": "Pre-publish checklist"
+    },
+    "facts_sheet": {
+      "kind": "table",
+      "platform": "google_drive",
+      "live": "FIXTURE-003",
+      "test": null,
+      "tab": "Facts",
+      "range": "A1:H"
+    },
+    "long_form": {
+      "kind": "file",
+      "platform": "google_drive",
+      "live": "FIXTURE-004",
+      "test": null,
+      "title": "Energy Reporting Without the Spreadsheet (2026)",
+      "chapter_map": "chapter-map.md"
+    },
+    "assets": {
+      "kind": "folder",
+      "platform": "google_drive",
+      "live": "FIXTURE-005",
+      "test": null,
+      "title": "Brand assets"
+    },
+    "calendar": {
+      "kind": "table",
+      "platform": "google_drive",
+      "live": "FIXTURE-006",
+      "test": "FIXTURE-TEST-022",
+      "tab": "Calendar",
+      "range": "A1:V"
+    },
+    "proof_log": {
+      "kind": "table",
+      "platform": "google_drive",
+      "live": "FIXTURE-008",
+      "test": "FIXTURE-TEST-023",
+      "tab": "Proof log",
+      "range": "A1:J",
+      "sheet_gid": "FIXTURE-010"
+    },
+    "drafts_folder": {
+      "kind": "folder",
+      "platform": "google_drive",
+      "live": "FIXTURE-011",
+      "test": "FIXTURE-TEST-024"
+    },
+    "briefs_folder": {
+      "kind": "folder",
+      "platform": "google_drive",
+      "live": "FIXTURE-013",
+      "test": "FIXTURE-TEST-025"
+    },
+    "agent_register": {
+      "kind": "table",
+      "platform": "google_drive",
+      "live": "FIXTURE-015",
+      "test": null,
+      "tab": "Register"
+    },
+    "shadow": {
+      "drafts_folder": {
+        "live": "FIXTURE-016",
+        "test": "FIXTURE-017"
+      },
+      "briefs_folder": {
+        "live": "FIXTURE-018",
+        "test": "FIXTURE-019"
+      },
+      "review_sheet": {
+        "live": "FIXTURE-020",
+        "test": "FIXTURE-021",
+        "tab": "Review"
+      }
+    },
+    "other": [
+      {
+        "kind": "repo",
+        "platform": "github",
+        "live": "brightwell/website",
+        "title": "Website source",
+        "use": "Published blog text for teasers"
+      }
+    ]
+  },
+  "writing": {
+    "spelling": "UK",
+    "units": "metric",
+    "date_format": "DD MMM YY",
+    "no_em_dash": true,
+    "emoji": false,
+    "word_count": {
+      "post": [
+        80,
+        200
+      ],
+      "founder": [
+        80,
+        250
+      ],
+      "poll": [
+        80,
+        200
+      ]
+    },
+    "opening_max_words": 15,
+    "hashtags": {
+      "min": 3,
+      "max": 5,
+      "required": [
+        "#Brightwell",
+        "#EnergyReporting"
+      ],
+      "conditional": [
+        {
+          "if_regex": "\\bnet zero\\b|\\bdisclosure",
+          "tag": "#Sustainability"
+        }
+      ]
+    },
+    "link_in_first_comment": true,
+    "competitors": [
+      "examplecorp",
+      "metermate"
+    ],
+    "avoid_terms": [
+      "game-changing",
+      "revolutionary",
+      "seamless",
+      "leverage",
+      "unlock",
+      "journey"
+    ],
+    "date_words_warn": [
+      "launch",
+      "available",
+      "availability",
+      "shipping",
+      "pre-order"
+    ],
+    "custom_rules": [
+      {
+        "id": "R-01",
+        "level": "fail",
+        "regex": "\\bcertified\\b|\\baccredited\\b",
+        "message": "Brightwell is not certified. Use the approved wording in fact C02."
+      },
+      {
+        "id": "R-02",
+        "level": "fail",
+        "regex": "\\bfree trial\\b",
+        "message": "No offers or pricing in posts."
+      },
+      {
+        "id": "R-03",
+        "level": "warn",
+        "regex": "\\bAI\\b",
+        "unless_regex": "\\bassisted\\b",
+        "message": "AI claims need fact A04 wording."
+      }
+    ],
+    "on_hold_topics": [
+      {
+        "regex": "\\bwebinar\\b",
+        "fact_id": "E01",
+        "message": "Webinar mentioned while it is on hold."
+      }
+    ],
+    "spelling_allow": [
+      "Brightwell"
+    ],
+    "product_timing": {
+      "level": "warn"
+    }
+  },
+  "facts": {
+    "id_col": "ID",
+    "claim_col": "Claim",
+    "status_col": "Status",
+    "comments_col": "Approver comments",
+    "approved_values": [
+      "Approved",
+      "Approved with edits"
+    ]
+  },
+  "calendar": {
+    "team_owned_regex": "Publish|Newsletter|Distribute",
+    "proof_types": {
+      "Partner": "Partner Win",
+      "Customer": "Customer Proof",
+      "Advisor": "Advisory board announcement"
+    },
+    "proof_placeholders": {
+      "Partner Win": "Partner news (to confirm)",
+      "Customer Proof": "Customer story (to confirm)",
+      "Advisory board announcement": "Advisory board announcement (advisor to confirm)"
+    },
+    "teaser_regex": "LinkedIn teaser",
+    "event_live_regex": "\\b(live|recap)\\b",
+    "statuses": [
+      "Proposed",
+      "Planned",
+      "Draft ready",
+      "Fallback post",
+      "Approved",
+      "Posted",
+      "Cancelled",
+      "Backlog"
+    ],
+    "blog_id_regex": "^(Blog \\d+)",
+    "formula_columns": [
+      "Action needed",
+      "Draft"
+    ],
+    "content_type_aliases": {
+      "Report push": "Guide push"
+    },
+    "week_numbering": "iso",
+    "alternation_anchor_week": {
+      "year": 2026,
+      "week": 1
+    },
+    "agent_statuses": [
+      "Proposed",
+      "Draft ready",
+      "Fallback post"
+    ],
+    "request_columns": [
+      "Date",
+      "What to post",
+      "Pillar",
+      "Channel",
+      "Title / angle",
+      "Content type",
+      "Spec"
+    ],
+    "tabs": {
+      "calendar": "Calendar",
+      "backlog": "Backlog",
+      "ideas": "Ideas",
+      "milestones": "Milestones",
+      "approver_notes": "From the approver's notes",
+      "agent_log": "Agent log",
+      "approver_edits": "Approver edits",
+      "agent_snapshot": "Agent snapshot",
+      "this_week": "This Week",
+      "how_to_use": "How to use"
+    }
+  },
+  "requests": {
+    "enabled": true,
+    "from": [
+      "approver"
+    ],
+    "series_drop_word": "drop",
+    "hold_lift_word": "CONFIRMED"
+  },
+  "notes": {
+    "agent_prefix": "Agents",
+    "agent_lines_kept": 1
+  },
+  "proof": {
+    "approver_word_is_signoff": false,
+    "not_signed_off_values": [
+      "No",
+      "Pending"
+    ],
+    "advisor_horizon_days": 91
+  },
+  "edit_learning": {
+    "enabled": true,
+    "examples_per_draft": 3,
+    "monthly_proposals_max": 5,
+    "min_supporting_edits": 2
+  },
+  "series": {
+    "draft_within_days": 14
+  },
+  "plan": {
+    "precedence": "dated_events_first",
+    "week1_monday": "2026-03-02",
+    "known_deviations": [],
+    "posts_per_week": [
+      2,
+      4
+    ],
+    "proof_slot": {
+      "weekday": "Tue",
+      "odd_weeks": "Partner Win",
+      "even_weeks": "Customer Proof"
+    },
+    "blog_pair": {
+      "weekday": "Wed",
+      "weeks": "odd"
+    },
+    "rotation_slot": {
+      "weekday": "Thu",
+      "types": [
+        "Industry POV",
+        "Poll",
+        "Guide push"
+      ]
+    },
+    "no_repeat_in_week": [
+      "POV",
+      "Poll"
+    ],
+    "holiday_rules": "plan_rules",
+    "dependencies": [
+      {
+        "fact_id": "E01",
+        "deadline": "2026-03-23",
+        "label": "webinar topic",
+        "hold_regex": "on hold",
+        "row_regex": "webinar|event announcement|live event",
+        "milestone_type": "Webinar"
+      }
+    ]
+  },
+  "swaps": {
+    "types": [
+      "Industry POV",
+      "Poll",
+      "Guide push"
+    ],
+    "source_label": "Guide",
+    "chapters": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+    ],
+    "excluded_chapters": [
+      "8"
+    ]
+  },
+  "visuals": {
+    "no_repeat_weeks": 8,
+    "asset_prefix": "Brand assets",
+    "ai_image_tool": "ImageGen",
+    "product_reference_photo": null,
+    "real_photo_only_regex": "Partner Win|Customer Proof|\\b(live|recap)\\b",
+    "aspect_ratios": [
+      "1.91:1 (1200 x 627)",
+      "1:1 (1080 x 1080)"
+    ],
+    "brand_colors": [
+      "#1F2933",
+      "#2F7D6D",
+      "#E8F2EF"
+    ]
+  }
+}

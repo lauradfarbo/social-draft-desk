@@ -1,0 +1,26 @@
+{
+ "values": [
+  [
+   "Date captured",
+   "Row ID",
+   "Content type",
+   "Status",
+   "Size of edit",
+   "Original draft",
+   "Approver's text",
+   "What changed",
+   "Draft URL"
+  ],
+  [
+   "09 MAR 26",
+   "W13-02",
+   "Poll",
+   "Draft ready",
+   "Light edit (90% of the draft's words kept)",
+   "Which energy report takes your team the longest each month? Vote below and tell us what slows it down.",
+   "An older edit of the poll.",
+   "Shortened the question.",
+   "https://docs.example.com/d/TEST-drafts-012?tab=w1302"
+  ]
+ ]
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "type": "Partner",
+    "organization": "Lowmoor Services",
+    "what_happened": "Lowmoor Services signed as a reseller.",
+    "quote": "",
+    "source": "W11-01 Notes",
+    "noted": "2026-03-04",
+    "public_from": "",
+    "by": "Sam Ortega"
+  },
+  {
+    "type": "Customer",
+    "organization": "harlow council",
+    "what_happened": "Harlow Council renewed.",
+    "source": "Ideas row 3",
+    "noted": "2026-03-05"
+  },
+  {
+    "type": "Advisor",
+    "organization": "Mei Tan, Corran Institute",
+    "what_happened": "Mei Tan joins the advisory board.",
+    "quote": "Great to be here",
+    "source": "Ideas row 4",
+    "noted": "2026-03-05"
+  },
+  {
+    "type": "Vendor",
+    "organization": "Odd Co",
+    "what_happened": "Something.",
+    "source": "Ideas row 5"
+  },
+  {
+    "type": "Advisor",
+    "organization": "Ian Rowe, Lark Trust",
+    "what_happened": "Ian Rowe joins the advisory board.",
+    "quote": "\"Glad to help.\" (Ian Rowe, Lark Trust)",
+    "source": "Ideas row 6",
+    "noted": "2026-03-06",
+    "public_from": "2026-03-20"
+  }
+]

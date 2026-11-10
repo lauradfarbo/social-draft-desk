@@ -3,6 +3,7 @@
 
 Usage:
   python3 check_draft.py draft.json --config workspace.json [--facts facts.json]
+      [--person-items person_items.json] [--milestones milestones.json] [--row row.json]
 
 draft.json:
 {
@@ -16,18 +17,37 @@ draft.json:
 workspace.json: the client config. Every client rule comes from its "writing" section
 (competitors, avoid_terms, spelling US or UK, spelling_allow, units metric or imperial,
 word_count, opening_max_words, hashtags, link_in_first_comment, date_words_warn,
-custom_rules, on_hold_topics, emoji, no_em_dash) and company.people_first_mention.
-A missing optional key skips that check. Exceptions: em dashes fail unless no_em_dash is
-false, links in the body fail unless link_in_first_comment is false, and a missing
-date_words_warn uses a built-in launch and availability word list.
+custom_rules, on_hold_topics, emoji, no_em_dash), company.people_first_mention,
+plan.dependencies (milestone_type per fact_id), requests.hold_lift_word (default
+"CONFIRMED") and facts.* column names. A missing optional key skips that check.
+Exceptions: em dashes fail unless no_em_dash is false, links in the body fail unless
+link_in_first_comment is false, and a missing date_words_warn uses a built-in launch and
+availability word list.
 
 facts.json (optional): the facts sheet, either {"values": [[headers], ...]} with the column
-names from the config's "facts" section, or a list of objects. A topic in
-writing.on_hold_topics is on hold unless its fact_id is approved in this file. Without
-the file, every on-hold topic is treated as on hold.
+names from the config's "facts" section, or a list of objects ({"id","claim"} as in
+facts_approved.json). Approved claims are figure sources.
+person_items.json (optional): facts the approver gave in Notes or on the Ideas tab (the
+"From the approver's notes" tab), a list of objects. Each counts as approved for drafting and
+as a figure source. It never authorizes a name.
+milestones.json (optional): the Milestones tab ({"values": ...}, headers include Type and
+Confirmed).
+row.json (optional): the calendar row being drafted (an object with the calendar headers).
+When a file is not given, the script looks for person_items.json, milestones.json, row.json,
+facts_approved.json and facts.json in the draft's folder (the bundle convention).
+
+Holds: a topic in writing.on_hold_topics is on hold unless one of these lifts it:
+- its fact_id is approved in the facts file;
+- a Milestones row whose Type is the topic's milestone_type (on the topic, or on the
+  plan.dependencies entry with the same fact_id) has Confirmed Yes;
+- the row is about the topic and its Notes hold the hold-lift word (CONFIRMED) with a date.
+Without any of these files, every on-hold topic is treated as on hold.
 
 Built-in generic checks: em dash, en dash used as a dash, links in the body, poll limits
-(question 140 characters, 2 to 4 options of 30 characters), figures (warning).
+(question 140 characters, 2 to 4 options of 30 characters), figures (warning unless the
+figure is in an approved claim or a person item; "2" and "02" are the same number; text in
+[square brackets] is a gap, not a figure), [bracketed] gaps (warning: list each in What's
+missing and fill it before Approved).
 
 Prints a JSON report. Exit code 1 if any check fails, 2 on a usage error.
 Fails break a hard rule. Warnings need the drafter or a person to confirm.
@@ -35,6 +55,7 @@ This script does not judge claims against the facts sheet; the drafter and the
 compliance checker do that.
 """
 import json
+import os
 import re
 import sys
 
@@ -120,12 +141,14 @@ def load_rows(data):
     return [dict(zip(hdr, list(r) + [""] * (len(hdr) - len(r)))) for r in data[1:]]
 
 
-def approved_fact_ids(facts_rows, cfg):
+def approved_facts(facts_rows, cfg):
+    """Return (ids, claims text) of approved facts."""
     fc = cfg.get("facts", {}) or {}
     id_col = fc.get("id_col", "ID")
     status_col = fc.get("status_col", "Status")
+    claim_col = fc.get("claim_col", "Claim")
     ok = {v.strip().lower() for v in fc.get("approved_values", ["Approved", "Approved with edits"])}
-    ids = set()
+    ids, claims = set(), []
     for r in facts_rows:
         fid = str(r.get(id_col, r.get("id", ""))).strip()
         if not fid:
@@ -134,10 +157,86 @@ def approved_fact_ids(facts_rows, cfg):
         if status is None or str(status).strip().lower() in ok:
             # A row with no status column is from facts_approved.json: approved by definition.
             ids.add(fid)
-    return ids
+            claims.append(str(r.get(claim_col, r.get("claim", ""))))
+    return ids, " ".join(claims)
 
 
-def check(d, cfg, facts_ids):
+def approved_fact_ids(facts_rows, cfg):
+    return approved_facts(facts_rows, cfg)[0]
+
+
+NUM_RE = re.compile(r"(?<![\w.:/])[$£€]?\s?\d+(?:[.,]\d+)*\s*(?:%|x\b)?(?![\w:/])")
+TIME_RE = re.compile(r"\b\d{1,2}:\d{2}\b")
+DATE_RE = re.compile(r"\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:\s+\d{2,4})?\b"
+                     r"|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b", re.I)
+GAP_RE = re.compile(r"\[[^\]]{2,120}\]")
+
+
+def norm_num(tok):
+    """'02' and '2' are the same number; commas, spaces and currency signs are ignored."""
+    t = re.sub(r"[,\s+$£€]", "", tok).lower()
+    if re.fullmatch(r"\d+", t):
+        return t.lstrip("0") or "0"
+    m = re.fullmatch(r"(\d+)(.*)", t)
+    return (m.group(1).lstrip("0") or "0") + m.group(2) if m else t
+
+
+def figures_in(text):
+    """Number tokens in text, leaving out [gaps], hashtags, times and dates."""
+    text = GAP_RE.sub(" ", text)
+    text = re.sub(r"#\w+", " ", text)
+    text = TIME_RE.sub(" ", text)
+    text = DATE_RE.sub(" ", text)
+    return [m.group(0).strip() for m in NUM_RE.finditer(text)]
+
+
+def is_figure(tok):
+    """A figure worth tracing: a percentage, multiple, money, or a number other than 0 to 9.
+    Years (1900 to 2099) are left to the date checks."""
+    if re.search(r"%|x$|[$£€]", tok):
+        return True
+    t = re.sub(r"[,\s]", "", tok)
+    if re.fullmatch(r"(19|20)\d\d", t):
+        return False
+    return not re.fullmatch(r"0*\d", t)
+
+
+def topic_milestone_type(topic, cfg):
+    if topic.get("milestone_type"):
+        return str(topic["milestone_type"])
+    fid = topic.get("fact_id")
+    for dep in ((cfg.get("plan", {}) or {}).get("dependencies") or []):
+        if fid and dep.get("fact_id") == fid and dep.get("milestone_type"):
+            return str(dep["milestone_type"])
+    return ""
+
+
+def milestone_confirmed(milestones, mtype):
+    if not mtype:
+        return False
+    for m in milestones or []:
+        if str(m.get("Type", "")).strip().lower() == mtype.strip().lower() \
+                and str(m.get("Confirmed", "")).strip().lower() == "yes":
+            return True
+    return False
+
+
+def notes_lift(row, topic, cfg):
+    """The row is about the topic and its Notes hold the hold-lift word with a date."""
+    if not row:
+        return False
+    word = str((cfg.get("requests", {}) or {}).get("hold_lift_word") or "CONFIRMED")
+    notes = str(row.get("Notes", ""))
+    about = " ".join(str(row.get(k, "")) for k in ("Content type", "Title / angle", "What to post", "Notes"))
+    if not topic.get("regex") or not safe_search(topic["regex"], about):
+        return False
+    for line in re.split(r"(?<=[.!?])\s+|\n", notes):
+        if re.search(r"\b" + re.escape(word) + r"\b", line) and DATE_RE.search(line):
+            return True
+    return False
+
+
+def check(d, cfg, facts_ids, facts_claims="", person_items=None, milestones=None, row=None):
     w = cfg.get("writing", {}) or {}
     company = cfg.get("company", {}) or {}
     post = d.get("post", "") or ""
@@ -237,11 +336,31 @@ def check(d, cfg, facts_ids):
         fid = t.get("fact_id")
         if fid and facts_ids is not None and fid in facts_ids:
             continue  # fact approved: topic no longer on hold
+        if milestone_confirmed(milestones, topic_milestone_type(t, cfg)):
+            continue  # the dependency's milestone has Confirmed Yes
+        if notes_lift(row, t, cfg):
+            continue  # a person wrote CONFIRMED with a date in Notes
         fails.append(t.get("message") or "Topic mentioned while it is on hold.")
 
-    # Figures.
-    if re.search(r"\d+(\.\d+)?\s*%|\b\d+x\b|[$£€]\s?\d", post):
-        warns.append("Figure found: it must map to an approved fact with a traceable reference, and the source must be named.")
+    # Figures. Text in [square brackets] is a gap, not a figure. Approved claims and person
+    # items are figure sources; "2" and "02" are the same number.
+    trace = facts_claims or ""
+    if person_items:
+        trace += " " + json.dumps(person_items, ensure_ascii=False)
+    trace_nums = {norm_num(t) for t in figures_in(trace)}
+    seen_fig = set()
+    for tok in figures_in(post):
+        if not is_figure(tok) or norm_num(tok) in trace_nums or norm_num(tok) in seen_fig:
+            continue
+        seen_fig.add(norm_num(tok))
+        warns.append(f"Figure found: '{tok}' is not in an approved fact or person item. It must map to an "
+                     "approved fact with a traceable reference, and the source must be named.")
+
+    # Gaps in a base draft.
+    gaps = GAP_RE.findall(post + "\n" + comment)
+    if gaps:
+        warns.append("Base draft with gaps: " + ", ".join(dict.fromkeys(gaps)) +
+                     ". List each in What's missing; a person fills them before Approved.")
 
     # Links.
     if re.search(LINK, post) and w.get("link_in_first_comment", True) is not False:
@@ -252,7 +371,16 @@ def check(d, cfg, facts_ids):
     # First mention of people.
     pfm = company.get("people_first_mention") or w.get("people_first_mention") or {}
     for key, full in pfm.items():
-        m = re.search(r"\b" + re.escape(key) + r"\b", post)
+        # Another person with the same first name (written with a different surname) does not count.
+        nxt = re.match(re.escape(key) + r"\s+([A-Z][\w'\-]+)", full)
+        own_surname = nxt.group(1) if nxt else None
+        m = None
+        for c in re.finditer(r"\b" + re.escape(key) + r"\b", post):
+            after = re.match(r"\s+([A-Z][\w'\-]+)", post[c.end():])
+            if after and after.group(1) != own_surname:
+                continue
+            m = c
+            break
         if not m:
             continue
         i = post.find(full)
@@ -303,17 +431,40 @@ def arg_value(argv, flag):
     return None
 
 
+def load_json(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def bundle_file(argv, flag, folder, names):
+    p = arg_value(argv, flag)
+    if p:
+        return p
+    for n in names:
+        q = os.path.join(folder, n)
+        if os.path.exists(q):
+            return q
+    return None
+
+
 def main(argv):
-    with open(argv[1], encoding="utf-8") as f:
-        d = json.load(f)
-    with open(arg_value(argv, "--config"), encoding="utf-8") as f:
-        cfg = json.load(f)
-    facts_ids = None
-    fp = arg_value(argv, "--facts")
+    d = load_json(argv[1])
+    cfg = load_json(arg_value(argv, "--config"))
+    folder = os.path.dirname(os.path.abspath(argv[1]))
+    facts_ids, claims = None, ""
+    fp = bundle_file(argv, "--facts", folder, ("facts_approved.json", "facts.json"))
     if fp:
-        with open(fp, encoding="utf-8") as f:
-            facts_ids = approved_fact_ids(load_rows(json.load(f)), cfg)
-    report = check(d, cfg, facts_ids)
+        facts_ids, claims = approved_facts(load_rows(load_json(fp)), cfg)
+    pp = bundle_file(argv, "--person-items", folder, ("person_items.json",))
+    person = load_json(pp) if pp else None
+    mp = bundle_file(argv, "--milestones", folder, ("milestones.json",))
+    miles = load_rows(load_json(mp)) if mp else None
+    rp = bundle_file(argv, "--row", folder, ("row.json",))
+    row = load_json(rp) if rp else None
+    if isinstance(row, dict) and "values" in row:
+        rows = load_rows(row)
+        row = rows[0] if rows else None
+    report = check(d, cfg, facts_ids, claims, person, miles, row)
     print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0 if report["pass"] else 1
 

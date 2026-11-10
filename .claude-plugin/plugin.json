@@ -1,0 +1,17 @@
+{
+  "name": "social-draft-desk",
+  "version": "1.0.0",
+  "description": "Runs the weekly LinkedIn content calendar for founder-led teams with no marketing hire: drafts every post, checks each draft independently and learns from your edits. You approve and post; it never publishes.",
+  "author": {
+    "name": "lauradfarbo"
+  },
+  "repository": "https://github.com/lauradfarbo/social-draft-desk",
+  "license": "MIT",
+  "keywords": [
+    "social media",
+    "linkedin",
+    "content calendar",
+    "content drafting",
+    "agents"
+  ]
+}

@@ -2,29 +2,29 @@
  "values": [
   [
    "Milestone",
-   "Date",
    "Type",
-   "Rows proposed",
+   "Start date",
+   "End date",
    "Confirmed",
-   "Owner",
-   "Notes"
+   "Notes",
+   "Rows proposed"
   ],
   [
    "Spring Energy Forum (Leeds)",
-   "2026-04-10",
    "Trade show",
-   "Yes",
+   "2026-04-10",
+   "2026-04-10",
    "Cancelled",
-   "Sam Ortega",
-   "Stand cancelled"
+   "Stand cancelled",
+   "Yes"
   ],
   [
    "Summer product update",
-   "2026-06-15",
    "Release",
+   "2026-06-15",
    "",
    "Yes",
-   "Priya Nair",
+   "",
    ""
   ]
  ]

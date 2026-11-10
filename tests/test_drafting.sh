@@ -27,6 +27,7 @@ json_eq() {
 }
 
 cd "$FX" || exit 1
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 echo "# The two copies of check_draft.py are identical"
 if cmp -s "$SFD/check_draft.py" "$PI/check_draft.py"; then ok "check_draft.py identical"; else bad "check_draft.py copies differ"; fi
@@ -89,6 +90,66 @@ expect_exit "match flagged calendar" 0 python3 "$PI/match_proof.py" calendar_fla
 json_eq "already flagged slots" "[s.get('already_flagged') for s in d['slots'][1:]]" "[True, True]"
 expect_exit "match later run" 0 python3 "$PI/match_proof.py" calendar_flagged.json proof_log.json --config workspace.json --as-of 2026-03-08
 json_eq "cut-off passing re-flags the slot" "d['slots'][0]['row_id'], d['slots'][0]['already_flagged'], d['slots'][0]['pending'][0]['cutoff_passed']" "W02-02 False True"
+
+echo "# check_draft.py: base drafts, figures and holds"
+expect_exit "gaps: base draft passes with warnings" 0 python3 "$SFD/check_draft.py" bundle_gaps/draft.json --config workspace_v2.json
+expect_text "gaps warned" "Base draft with gaps: [Blog 2 link], [Advisor 3 full name]"
+expect_no_text "number inside [brackets] is not a figure" "'30%'"
+expect_no_text "'2%' matches person item '02%'" "'2%'"
+expect_no_text "person item figure '40%' traced" "'40%'"
+expect_text "untraced figure still warned" "Figure found: '75%'"
+cp bundle_gaps/draft.json "$TMP/draft.json"
+expect_exit "gaps draft outside its bundle" 0 python3 "$SFD/check_draft.py" "$TMP/draft.json" --config workspace_v2.json
+expect_text "without person items, '2%' warns" "Figure found: '2%'"
+expect_exit "explicit --person-items" 0 python3 "$SFD/check_draft.py" "$TMP/draft.json" --config workspace_v2.json --person-items bundle_gaps/person_items.json
+expect_no_text "explicit person items trace '2%'" "'2%'"
+expect_exit "hold lifted by Milestones Confirmed Yes" 0 python3 "$SFD/check_draft.py" bundle_hold_milestone/draft.json --config workspace_v2.json
+expect_exit "hold stands while milestone not confirmed" 1 python3 "$SFD/check_draft.py" bundle_hold_unconfirmed/draft.json --config workspace_v2.json
+expect_text "hold message" "Webinar mentioned while it is on hold"
+expect_exit "hold lifted by CONFIRMED with a date in Notes" 0 python3 "$SFD/check_draft.py" bundle_hold_notes/draft.json --config workspace_v2.json
+expect_exit "lowercase confirmed without a date keeps the hold" 1 python3 "$SFD/check_draft.py" bundle_hold_words/draft.json --config workspace_v2.json
+expect_exit "config without milestone_type: milestone does not lift" 1 python3 "$SFD/check_draft.py" bundle_hold_milestone/draft.json --config workspace.json
+expect_exit "another person with the same first name" 0 python3 "$SFD/check_draft.py" bundle_other_person/draft.json --config workspace_v2.json
+expect_no_text "no first-mention fail for Priya Shah" "First mention of Priya"
+
+echo "# Sign-off rule: proof.approver_word_is_signoff false (default)"
+expect_exit "match runs (false)" 0 python3 "$PI/match_proof.py" calendar_v2.json proof_log_v2.json --config workspace_v2.json --as-of 2026-03-09
+json_eq "rule reported" "d['signoff_rule'], d['advisor_horizon_days']" "status_yes_only 91"
+json_eq "slots: Backlog skipped, advisor horizon" "','.join(s['row_id'] for s in d['slots'])" "W11-01,W11-02,W12-02,W17-02"
+json_eq "W11-01 drafted, not implied" "d['slots'][0]['action'], d['slots'][0]['proof_row'], d['slots'][0]['implied_signoff'], d['slots'][0]['drafter']" "draft 2 False proof-intake"
+json_eq "blank status waits under the default" "d['slots'][1]['action'], [p['proof_row'] for p in d['slots'][1]['pending']]" "flag [3, 4]"
+json_eq "late cut-off given" "d['slots'][1]['pending'][0]['cutoff_passed'], d['slots'][1]['pending'][0]['late_cutoff']" "True 10 MAR 26"
+json_eq "advisor with blank fields is a problem" "d['proof_log_problems'][0]['proof_row']" "5"
+json_eq "advisory rows without a usable item: no_item, drafter" "d['slots'][2]['action'], d['slots'][2]['drafter'], d['slots'][3]['action']" "no_item short-form-drafter no_item"
+expect_no_text "Backlog row never reported" "W12-01"
+expect_no_text "advisor beyond horizon not listed" "W26-02"
+expect_exit "blank sign-off fails check_proof_post (false)" 1 python3 "$PI/check_proof_post.py" proof_draft_blank.json proof_item_blank.json --config workspace_v2.json
+expect_text "status must be Yes" "Sign-off status must be Yes"
+expect_exit "proof_log_add refuses (false)" 3 python3 "$PI/proof_log_add.py" proof_log_v2.json new_items.json --config workspace_v2.json --as-of 2026-03-09
+expect_text "refusal says why" "approver_word_is_signoff is not true"
+json_eq "refusal writes nothing" "len(d['rows']), d['range']" "0 "
+expect_exit "proof_log_add refuses when the sign-off key is missing" 3 python3 "$PI/proof_log_add.py" proof_log_v2.json new_items.json --config workspace.json
+
+echo "# Sign-off rule: proof.approver_word_is_signoff true"
+expect_exit "match runs (true)" 0 python3 "$PI/match_proof.py" calendar_v2.json proof_log_v2.json --config workspace_word.json --as-of 2026-03-09
+json_eq "rule reported (true)" "d['signoff_rule']" "approver_word"
+json_eq "blank status counts, implied, signed by Logged by" "d['slots'][1]['action'], d['slots'][1]['proof_row'], d['slots'][1]['implied_signoff'], d['slots'][1]['signed_by']" "draft 3 True Sam Ortega"
+json_eq "Advisor item fills the first advisory row" "d['slots'][2]['action'], d['slots'][2]['proof_row'], d['slots'][2]['drafter']" "draft 5 short-form-drafter"
+json_eq "second advisory row: no_item" "d['slots'][3]['action']" "no_item"
+json_eq "no proof log problems" "len(d['proof_log_problems'])" "0"
+json_eq "sign-off No still marked" "[i['proof_row'] for i in d['mark_not_used_signoff_no']]" "[6]"
+expect_exit "blank sign-off passes check_proof_post (true)" 0 python3 "$PI/check_proof_post.py" proof_draft_blank.json proof_item_blank.json --config workspace_word.json
+expect_exit "Pending still fails (true)" 1 python3 "$PI/check_proof_post.py" proof_draft_blank.json proof_item_pending.json --config workspace_word.json
+expect_text "Pending reason" "Sign-off status is Pending"
+expect_exit "Advisor post names person and organization" 0 python3 "$PI/check_proof_post.py" proof_draft_advisor.json proof_item_advisor.json --config workspace_word.json
+expect_no_text "gap number is not a figure in proof check" "Figure '"
+expect_exit "proof_log_add runs (true)" 0 python3 "$PI/proof_log_add.py" proof_log_v2.json new_items.json --config workspace_word.json --as-of 2026-03-09
+json_eq "rows added below the last row" "d['range'], len(d['rows'])" "Proof log!A7:J8 2"
+json_eq "logged row shape" "'|'.join(d['rows'][0][:9])" "2026-03-04|Partner|Lowmoor Services|Lowmoor Services signed as a reseller.||Sam Ortega (W11-01 Notes)|Yes|2026-03-04|Agents, from Sam Ortega's W11-01 Notes"
+json_eq "public from given is kept" "d['rows'][1][7]" "2026-03-20"
+json_eq "skipped: duplicate, bad quote, bad type" "[x['reason'][:12] for x in d['skipped']]" "['already in t', 'quote must b', 'type must be']"
+json_eq "reviewer note asks to confirm naming" "d['reviewer_notes']['Lowmoor Services']" "Sign-off: Sam Ortega's word. Confirm Lowmoor Services is happy to be named before posting."
+expect_exit "proof_log_add usage" 2 python3 "$PI/proof_log_add.py" proof_log_v2.json --config workspace_word.json
 
 echo "# Writing standards in this area"
 EMDASH=$(printf '\342\200\224')

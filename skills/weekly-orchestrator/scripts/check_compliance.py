@@ -5,9 +5,17 @@ Usage:
   python3 check_compliance.py draft.json facts.json [--config workspace.json] [--proof proof_item.json]
 
 Run from the check bundle folder: check_draft.py must sit next to this file. It is called with the
-same --config and with --facts facts.json. When assets.txt and visuals_recent.txt sit next to this
-file, assets files are checked for existence and repeats. Without --config, workspace.json next to
-this file is used when present.
+same --config and with --facts facts.json; check_draft.py finds person_items.json, milestones.json
+and row.json in the same folder (holds and figure sources). When assets.txt and visuals_recent.txt
+sit next to this file, assets files are checked for existence and repeats. Without --config,
+workspace.json next to this file is used when present.
+
+person_items.json (optional, next to this file): facts the approver gave in Notes or on the Ideas
+tab ("From the approver's notes" tab), and Milestones notes for the row. Each is an approved source
+for figures. It never authorizes naming a person or company.
+
+Figures: text inside [square-bracket] gaps is a placeholder a person fills before Approved, not a
+figure. "2" and "02" are the same number.
 
 draft.json (what the drafter returned, without its reasoning):
 {
@@ -19,7 +27,7 @@ draft.json (what the drafter returned, without its reasoning):
   "alternate_hook": "one line",
   "visual": "Use: <file> (<asset prefix>/<subfolder>) | Needed: <AI image tool> image of <subject>. Prompt in draft tab. | Needed: <real photo or graphic> | None needed (the poll renders itself)",
   "visual_alternatives": ["optional: other Use: lines the orchestrator may switch to"],
-  "image_prompt": "required with an AI image visual",
+  "image_prompt": "required with an AI image visual; expected on every post that may use a generated image",
   "image_alt_prompt": "required with an AI image visual: a different scene, not a reworded copy",
   "poll_question": "poll only",
   "poll_options": ["poll only"],
@@ -131,7 +139,19 @@ def numbers_in(text):
 
 
 def norm_num(tok):
-    return re.sub(r"[,\s+]", "", tok).lower()
+    t = re.sub(r"[,\s+]", "", tok).lower()
+    return (t.lstrip("0") or "0") if re.fullmatch(r"\d+", t) else t  # "02" and "2" are the same number
+
+
+def person_text():
+    """person_items.json next to this file, as one lower-case string (a figure source)."""
+    p = os.path.join(HERE, "person_items.json")
+    if not os.path.exists(p):
+        return ""
+    try:
+        return json.dumps(json.load(open(p, encoding="utf-8")), ensure_ascii=False).lower()
+    except (ValueError, OSError):
+        return ""
 
 
 def _ddmmmyy(iso):
@@ -227,6 +247,8 @@ def check_visuals(draft, vis, fix, warns, cfg):
                 break
     if not tool and (gp or ga):
         warns.append("Image prompts given, but the workspace has no AI image tool: drop them.")
+    if tool and not gp and not (real_rx and real_rx.search(ct)) and not vis.startswith("None needed"):
+        warns.append(f"No image_prompt: every post that may use a generated image carries a ready-to-paste {tool} prompt.")
 
     competitors = [c.lower() for c in cfg_get(cfg, "writing.competitors", [])]
     people = []
@@ -333,8 +355,9 @@ def main(argv):
     trace = " ".join(approved_text)
     if proof:
         trace += " " + " ".join(str(v) for v in proof.values()).lower()
+    trace += " " + person_text()
     trace_nums = {norm_num(t) for t in numbers_in(trace)}
-    for tok in numbers_in(post):
+    for tok in numbers_in(re.sub(r"\[[^\]]*\]", " ", post)):  # [bracketed] gaps are not figures
         if norm_num(tok) not in trace_nums:
             fix("Figures", f"Figure '{tok}' does not trace to a cited approved fact or the proof item.",
                 "Remove the figure, or cite the approved fact that states it (with its source named in the sentence).")

@@ -14,21 +14,40 @@ milestones.json: optional, the Milestones tab. A milestone with Confirmed "Cance
   when its Notes say "Milestone: <milestone name>." or its Title / angle contains the milestone's
   short name (the text before ":" or " (").
 
+Weeks: every "Week N" is the ISO week of the row's Date; the Week column is not read. Odd and even
+weeks alternate from calendar.alternation_anchor_week ({"year", "week"}, default 2026 week 1), so
+week 53 and week 1 still alternate. A config with only plan.week1_monday anchors on that Monday
+as week 1.
+
 Every check reads its rule from workspace.json. A missing key skips that check:
-  plan.week1_monday        Monday of plan week 1 (YYYY-MM-DD). If missing, derived from a dated row with a Week number
   plan.known_deviations    Row IDs that intentionally break the cadence (no cadence notes)
   plan.posts_per_week      [min, max] posts a week on the configured channels
   plan.proof_slot          {"weekday": "Tue", "odd_weeks": "<proof type>", "even_weeks": "<proof type>"}
+  plan.proof_slots         [{"weekday": "Tue", "type": "<proof type>"}, ...]: every week, one slot per entry
+                           (used instead of proof_slot when set). An Advisor row (calendar.proof_types.Advisor)
+                           fills a Customer proof slot. A proof slot a person asked to change (Notes "Changed
+                           from <proof type> ... as asked") is a decision, not a gap. A proof row on its slot
+                           day that shares the date with another post is listed once in brief_risks.
   plan.blog_pair           {"weekday": "Wed", "weeks": "odd" | "even" | "all"}: blog and teaser, same day
   plan.rotation_slot       {"weekday": "Thu", "types": [...]}: the post on that day is one of these types
   plan.no_repeat_in_week   content type words that may appear once a week only (for example "POV", "Poll")
-  plan.dependencies        [{"fact_id", "deadline", "label", "hold_regex", "row_regex"}]: rows that depend on a
-                           fact not yet approved get a note after the deadline; the brief warns from 7 days before
+  plan.dependencies        [{"fact_id", "deadline", "label", "hold_regex", "row_regex", "milestone_type"}]: rows
+                           that depend on a fact not yet approved get a note after the deadline; the brief warns
+                           from 7 days before. A row depends on it from its Content type or Title / angle, or an
+                           explicit note (the fact ID, or "depends on the <label>"). The hold is lifted when the
+                           fact is approved, when a Milestones row of milestone_type has Confirmed Yes, or for one
+                           row when its Notes hold requests.hold_lift_word (default CONFIRMED) with a date
+  plan.precedence          "dated_events_first" (default) or "off": a dated event (Content type matching
+                           plan.dated_event_regex, default "event|webinar") takes its day over an unconnected blog
+                           pair; precedence_moves gives each blog or teaser row a new date on the next free same
+                           weekday, with a note. A blog is connected when its title shares the event's title start
+                           or names the event's Row ID or milestone
   company.holiday_market   US, UK or NL: public holidays on posting days and holiday weeks are flagged.
                            Any other market: the holiday check is skipped and the output says so
   company.approver.name, channels, calendar.*, facts.*, run.plan_check_weeks
 
-Cancelled rows (set by a person) are decisions, not gaps: they still count as present for the
+Fallback post rows (backups under their original) are not slots and are ignored.
+Cancelled and Backlog rows (set by a person) are decisions, not gaps: they still count as present for the
 "missing slot" and "fewer than the minimum" checks, but get no notes, are left out of the
 "more than the maximum" and repeat checks, and are never named in brief_risks.
 
@@ -45,7 +64,11 @@ import sys
 from datetime import date, datetime, timedelta
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CANON = ["Proposed", "Planned", "Draft ready", "Approved", "Posted", "Cancelled"]
+CANON = ["Proposed", "Planned", "Draft ready", "Fallback post", "Approved", "Posted", "Cancelled", "Backlog"]
+LEGACY = ["Proposed", "Planned", "Draft ready", "Approved", "Posted", "Cancelled"]
+DATE_IN_TEXT = re.compile(r"\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:\s+\d{2,4})?\b"
+                          r"|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b", re.I)
+TYPED_ORDER = ["day_first"]
 VALUE_FLAGS = {"--config", "--milestones", "--as-of", "--weeks"}
 WD = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -75,14 +98,19 @@ def statuses(cfg):
     s = cfg_get(cfg, "calendar.statuses", None)
     if isinstance(s, dict):
         return {k: s.get(k, k) for k in CANON}
+    if isinstance(s, list) and set(CANON) <= set(s):
+        return {k: k for k in CANON}
     if isinstance(s, list) and len(s) == len(CANON):
         return dict(zip(CANON, s))
+    if isinstance(s, list) and len(s) == len(LEGACY):
+        return {**{k: k for k in CANON}, **dict(zip(LEGACY, s))}
     return {k: k for k in CANON}
 
 
 def parse_date(s):
     s = (s or "").strip()
-    for f in ("%a %d %b %y", "%d %b %y", "%Y-%m-%d", "%d %b %Y"):
+    num = ("%m/%d/%y", "%m/%d/%Y") if TYPED_ORDER[0] == "month_first" else ("%d/%m/%y", "%d/%m/%Y", "%d.%m.%y", "%d.%m.%Y")
+    for f in ("%a %d %b %y", "%d %b %y", "%Y-%m-%d", "%d %b %Y") + num:
         try:
             return datetime.strptime(s.title() if "%b" in f else s, f).date()
         except ValueError:
@@ -204,27 +232,42 @@ def rows(values):
         d = dict(zip(hdr, r))
         d["_row"] = n
         d["_date"] = parse_date(d.get("Date", ""))
-        try:
-            d["_week"] = int(str(d.get("Week", "")).strip())
-        except ValueError:
-            d["_week"] = None
+        d["_week"] = None  # set from the Date in main()
         out.append(d)
     return out
 
 
 def depends(row, dep):
-    text = " ".join(row.get(k, "") or "" for k in ("Notes", "Title / angle", "Content type")).lower()
+    """A row depends on a fact from its type or title, or from an explicit note."""
+    text = " ".join(row.get(k, "") or "" for k in ("Title / angle", "Content type")).lower()
+    notes = (row.get("Notes", "") or "").lower()
     rx = dep.get("row_regex")
     if rx and re.search(rx, text, re.I):
         return True
     label = (dep.get("label") or "").lower()
     fid = (dep.get("fact_id") or "").lower()
-    return bool((label and label in text) or (fid and re.search(r"\b" + re.escape(fid) + r"\b", text)))
+    if label and label in text:
+        return True
+    if fid and re.search(r"\b" + re.escape(fid) + r"\b", text + " " + notes):
+        return True
+    return bool(label and re.search(r"depends on the " + re.escape(label), notes))
+
+
+def hold_lifted_in_notes(row, word):
+    for line in re.split(r"(?<=[.!?])\s+|\n", row.get("Notes", "") or ""):
+        if re.search(r"\b" + re.escape(word) + r"\b", line) and DATE_IN_TEXT.search(line):
+            return True
+    return False
+
+
+def monday_of(d):
+    return d - timedelta(days=d.weekday())
 
 
 def main(argv):
     cfg = load_config(argv)
     st = statuses(cfg)
+    TYPED_ORDER[0] = cfg_get(cfg, "dates.typed_order", "day_first")
     who = cfg_get(cfg, "company.approver.name", "") or "The approver"
     pos, skip = [], False
     for a in argv[1:]:
@@ -237,7 +280,7 @@ def main(argv):
     as_of = date.fromisoformat(argv[argv.index("--as-of") + 1]) if "--as-of" in argv else date.today()
     weeks_n = int(argv[argv.index("--weeks") + 1]) if "--weeks" in argv else int(cfg_get(cfg, "run.plan_check_weeks", 4))
     milestones = load(argv[argv.index("--milestones") + 1]) if "--milestones" in argv else None
-    cal = rows(load(pos[0]))
+    cal = [r for r in rows(load(pos[0])) if r.get("Status") != st["Fallback post"]]  # backups are not slots
     facts_v = load(pos[1])
     proof = load(pos[2]) if len(pos) > 2 else None
 
@@ -266,6 +309,11 @@ def main(argv):
                 return k
         return None
 
+    def slot_kind(ct):
+        """Proof key for slot checks: an Advisor row fills a Customer slot."""
+        k = proof_kind(ct)
+        return "Customer" if k == "Advisor" and "Customer" in proof_types else k
+
     def is_blog(r):
         ct = r.get("Content type", "") or ""
         return bool(blog_id.search(ct)) and bool(team.search(ct)) and not teaser.search(ct)
@@ -274,20 +322,25 @@ def main(argv):
         ct = r.get("Content type", "") or ""
         return not team.search(ct) and any(c in (r.get("Channel", "") or "").lower() for c in channels)
 
-    # Week numbering.
+    # Week numbering: ISO weeks for labels; odd and even alternate from a fixed anchor week.
+    anc = cfg_get(cfg, "calendar.alternation_anchor_week", None)
     w1 = plan_cfg.get("week1_monday")
-    week1 = date.fromisoformat(w1) if w1 else None
-    if not week1:
-        ref = next((r for r in cal if r["_date"] and r["_week"]), None)
-        if ref:
-            week1 = ref["_date"] - timedelta(days=ref["_date"].weekday()) - timedelta(weeks=ref["_week"] - 1)
+    if isinstance(anc, dict) and anc.get("year") and anc.get("week"):
+        anchor_monday, anchor_no = date.fromisocalendar(int(anc["year"]), int(anc["week"]), 1), int(anc["week"])
+    elif w1:
+        anchor_monday, anchor_no = monday_of(date.fromisoformat(w1)), 1  # plan week 1 from plan.week1_monday
+    else:
+        anchor_monday, anchor_no = date.fromisocalendar(2026, 1, 1), 1
     checks, brief, row_notes, notes_out = [], [], [], []
-    if not week1:
-        print(json.dumps({"as_of": fmt(as_of), "error": "No plan.week1_monday and no dated row with a Week number."}, indent=2))
-        return 1
     for r in cal:
-        if r["_date"] and r["_week"] is None:
-            r["_week"] = (r["_date"] - week1).days // 7 + 1
+        if r["_date"]:
+            r["_week"] = monday_of(r["_date"])  # the Monday of the row's week identifies the week
+
+    def is_odd(monday):
+        return bool((anchor_no + (monday - anchor_monday).days // 7) % 2)
+
+    def iso_no(monday):
+        return monday.isocalendar()[1]
 
     market = (cfg_get(cfg, "company.holiday_market", "") or "").upper()
     hol_fn = HOLIDAYS.get(market)
@@ -303,50 +356,85 @@ def main(argv):
             out.update({d: n for d, n in hol_fn(y).items() if a <= d <= b})
         return out
 
-    cur_week = (as_of - week1).days // 7 + 1
-    weeks = list(range(cur_week, cur_week + weeks_n))
+    first = monday_of(as_of)
+    weeks = [first + timedelta(weeks=i) for i in range(weeks_n)]
     in_scope = [r for r in cal if r["_week"] in weeks and r["_date"]]
     tag = f"Planner {fmt(as_of)}:"
+    off_plan = (st["Cancelled"], st["Backlog"])
+    lift_word = cfg_get(cfg, "requests.hold_lift_word", "CONFIRMED")
+    mtypes = set()
+    if milestones:
+        mh0 = [h.strip().lower() for h in milestones[0]]
+        i_t0 = mh0.index("type") if "type" in mh0 else 1
+        i_c0 = mh0.index("confirmed") if "confirmed" in mh0 else 4
+        for m in milestones[1:]:
+            m = list(m) + [""] * len(mh0)
+            if m[i_c0].strip().lower() == "yes" and m[i_t0].strip():
+                mtypes.add(m[i_t0].strip().lower())
 
     def note(r, text, missing="", kind_="rule"):
-        if r.get("Status") == st["Cancelled"]:
-            return  # a person's decision: no notes on cancelled rows
+        if r.get("Status") in off_plan:
+            return  # a person's decision: no notes on cancelled or backlog rows
         already = text in (r.get("Notes", "") or "")
         row_notes.append({"row": r["_row"], "row_id": r.get("Row ID", ""), "kind": kind_, "note": f"{tag} {text}",
                           "body": text, "whats_missing": missing, "already_noted": already,
                           "status": r.get("Status", ""), "date": fmt(r["_date"]) if r["_date"] else ""})
 
     ps = plan_cfg.get("proof_slot") or {}
+    pss = [x for x in (plan_cfg.get("proof_slots") or []) if isinstance(x, dict) and x.get("type")]
+    conv_rx = re.compile(r"Changed from (" + "|".join(re.escape(v) for v in proof_types.values() if v) + r")\b.*?as asked", re.I | re.S) \
+        if any(proof_types.values()) else None
     bp = plan_cfg.get("blog_pair") or {}
     rot = plan_cfg.get("rotation_slot") or {}
     ppw = plan_cfg.get("posts_per_week")
     nrw = plan_cfg.get("no_repeat_in_week") or []
 
-    for w in weeks:
-        monday = week1 + timedelta(weeks=w - 1)
+    for monday in weeks:
         sunday = monday + timedelta(days=6)
-        wr = [r for r in in_scope if r["_week"] == w and r.get("Status") != "Declined"]
-        live = [r for r in wr if r.get("Status") != st["Proposed"]]  # includes Cancelled: present for gap checks
-        active = [r for r in live if r.get("Status") != st["Cancelled"]]
+        wr = [r for r in in_scope if r["_week"] == monday and r.get("Status") != "Declined"]
+        live = [r for r in wr if r.get("Status") != st["Proposed"]]  # includes Cancelled and Backlog: present for gap checks
+        active = [r for r in live if r.get("Status") not in off_plan]
         hol = holidays_between(monday, sunday)
-        label = f"Week {w} ({fmt(monday)})"
+        label = f"Week {iso_no(monday)} ({fmt(monday)})"
         if not wr:
             brief.append(f"{label}: no rows on the calendar.")
             continue
-        odd = bool(w % 2)
+        odd = is_odd(monday)
+        converted = [r for r in live if conv_rx and conv_rx.search(r.get("Notes", "") or "")]
 
-        # Proof slot.
-        if ps:
+        # Proof slots.
+        if pss:
+            proofs = [r for r in live if slot_kind(r.get("Content type"))]
+            checks.append(f"{label}: proof slots")
+            for slot in pss:
+                key = next((k for k, v in proof_types.items() if v and v.lower() == slot["type"].lower()), None)
+                day = wd_index(slot.get("weekday"))
+                mine = [r for r in proofs if slot_kind(r.get("Content type")) == key]
+                if not mine and not converted and not hol:
+                    brief.append(f"{label} has no {slot['type']} slot; the plan puts one on "
+                                 f"{FULL[day] if day is not None else 'its day'} every week.")
+                for r in mine:
+                    if r.get("Row ID") in known or day is None or (monday + timedelta(days=day)) in hol:
+                        continue
+                    if r["_date"].weekday() != day:
+                        note(r, f"The {slot['type']} slot is planned for {FULL[day]}; this row is on a {r['_date'].strftime('%A')}.")
+                    elif r.get("Status") not in off_plan:
+                        others = [o for o in active if o is not r and o["_date"] == r["_date"] and is_post(o)]
+                        if others:
+                            brief.append(f"{fmt(r['_date'])}: the {slot['type']} slot ({r.get('Row ID')}) shares the day with "
+                                         f"{', '.join(o.get('Row ID', '') for o in others)}. {who} to decide which runs.")
+        elif ps:
             want_type = ps.get("odd_weeks") if odd else ps.get("even_weeks")
             want_day = wd_index(ps.get("weekday"))
             proofs = [r for r in live if proof_kind(r.get("Content type"))]
             checks.append(f"{label}: proof slot")
-            if not proofs:
+            if not proofs and not converted:
                 brief.append(f"{label} has no proof slot; the plan needs one every week.")
+            want_key = next((k for k, v in proof_types.items() if v and want_type and v.lower() == want_type.lower()), None)
             for r in proofs:
                 if r.get("Row ID") in known:
                     continue
-                if want_type and want_type.lower() not in r["Content type"].lower():
+                if want_type and want_type.lower() not in r["Content type"].lower() and slot_kind(r["Content type"]) != want_key:
                     note(r, f"Plan rules put {want_type} in {'odd' if odd else 'even'} weeks; this week has {r['Content type']}. {who} to confirm or swap.")
                 slot_day = monday + timedelta(days=want_day) if want_day is not None else None
                 if want_day is not None and r["_date"].weekday() != want_day and slot_day not in hol:
@@ -416,12 +504,17 @@ def main(argv):
         lab = dep.get("label") or f"fact {fid}"
         if fstat.get(fid) in approved_vals:
             continue
+        mt = (dep.get("milestone_type") or "").strip().lower()
+        if mt and mt in mtypes:
+            checks.append(f"Dependency: {lab} (fact {fid}) lifted by a confirmed {dep.get('milestone_type')} milestone")
+            continue
         try:
             deadline = date.fromisoformat(dep.get("deadline"))
         except (TypeError, ValueError):
             deadline = None
         checks.append(f"Dependency: {lab} (fact {fid})")
-        dep_rows = [r for r in cal if r["_date"] and r["_date"] >= as_of and r.get("Status") == st["Planned"] and depends(r, dep)]
+        dep_rows = [r for r in cal if r["_date"] and r["_date"] >= as_of and r.get("Status") == st["Planned"] and depends(r, dep)
+                    and not hold_lifted_in_notes(r, lift_word)]
         if deadline and as_of >= deadline:
             for r in dep_rows:
                 if r["_week"] in weeks:
@@ -435,11 +528,11 @@ def main(argv):
     # Conditional swap notes whose blog date no longer matches the blog row.
     checks.append("Conditional swap dates")
     for r in cal:
-        if r.get("Status") == st["Cancelled"] or not r["_date"] or r["_date"] < as_of:
+        if r.get("Status") in off_plan or not r["_date"] or r["_date"] < as_of:
             continue
         for m in COND.finditer(r.get("Notes", "") or ""):
             name, when = m.group(1).strip(), parse_date(m.group(2))
-            blog = next((b for b in cal if is_blog(b) and b.get("Status") != st["Cancelled"]
+            blog = next((b for b in cal if is_blog(b) and b.get("Status") not in off_plan
                          and blog_id.search(b.get("Content type", "")).group(1).lower() == name.lower()), None)
             if blog and blog["_date"] and when and blog["_date"] != when:
                 note(r, f"The conditional swap note names {fmt(when)}, but {name} ({blog.get('Row ID')}) is now dated {fmt(blog['_date'])}. "
@@ -492,9 +585,49 @@ def main(argv):
                 brief.append(f"Milestone \"{name}\" is Cancelled. Its rows are still on the calendar: {ids}. "
                              f"{who} to set them to Cancelled in one go, or keep any that should stay.")
 
-    print(json.dumps({"as_of": fmt(as_of), "weeks": weeks, "holiday_market": market or None,
+    # Dated events first: an event with a fixed date takes its day over an unconnected blog pair.
+    precedence = []
+    if (plan_cfg.get("precedence") or "dated_events_first") == "dated_events_first":
+        ev_rx = re.compile(plan_cfg.get("dated_event_regex") or r"\bevent\b|\bwebinar\b", re.I)
+
+        def is_event(r):
+            ct = r.get("Content type", "") or ""
+            return bool(ev_rx.search(ct)) and not is_blog(r) and not teaser.search(ct)
+        busy = (st["Cancelled"], st["Backlog"], st["Proposed"])
+        events = [r for r in cal if r["_date"] and r["_date"] >= as_of and is_event(r) and r.get("Status") not in busy]
+        taken = {r["_date"] for r in cal if r["_date"] and r.get("Status") not in off_plan and (is_blog(r) or is_event(r))}
+        for ev in sorted(events, key=lambda x: x["_date"]):
+            evtxt = ((ev.get("Title / angle") or "") + " " + (ev.get("Notes") or "")).lower()
+            ms = re.search(r"milestone: ([^.]+)\.", evtxt)
+            pair = [r for r in cal if r["_date"] == ev["_date"] and (is_blog(r) or teaser.search(r.get("Content type", "") or ""))
+                    and r.get("Status") not in off_plan + (st["Posted"],)]
+            moving = []
+            for r in pair:
+                title = (r.get("Title / angle") or "").lower()
+                rtxt = title + " " + (r.get("Notes") or "").lower()
+                ev_id = (ev.get("Row ID") or "").lower()
+                linked = bool((len(title) >= 10 and title[:20] in evtxt) or (ev_id and ev_id in rtxt)
+                              or (ms and f"milestone: {ms.group(1)}." in rtxt))
+                if not linked:
+                    moving.append(r)
+            if not moving:
+                continue
+            nd = ev["_date"] + timedelta(days=7)
+            while nd in taken:
+                nd += timedelta(days=7)
+            taken.add(nd)
+            for r in moving:
+                if r.get("Row ID") in known:
+                    continue
+                precedence.append({"row": r["_row"], "row_id": r.get("Row ID", ""), "from": fmt(r["_date"]), "to": nd.isoformat(),
+                                   "event": ev.get("Row ID", ""),
+                                   "note": f"Moved from {fmt(r['_date'])} to {fmt(nd)}: {ev.get('Row ID', '')} "
+                                           f"({(ev.get('Title / angle') or '')[:60]}) takes that day (dated events first)."})
+        checks.append("Dated events first")
+
+    print(json.dumps({"as_of": fmt(as_of), "weeks": [iso_no(m) for m in weeks], "holiday_market": market or None,
                       "row_notes": row_notes, "brief_risks": brief, "checks_run": checks, "notes": notes_out,
-                      "cancelled_milestones": cancelled_ms}, indent=2, ensure_ascii=False))
+                      "cancelled_milestones": cancelled_ms, "precedence_moves": precedence}, indent=2, ensure_ascii=False))
     return 0
 
 

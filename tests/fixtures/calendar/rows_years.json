@@ -1,0 +1,11 @@
+{
+  "_note": "Fictional Brightwell rows across two years. Week 2 of 2027 already holds W02-01 and W02-02, so week 2 of 2028 continues at W02-03 (Date order). The Fallback post W02-04-FB sits directly under W02-04.",
+  "rows": [
+    {"date": "2027-01-12", "ampm": "", "content_type": "Partner Win", "channel": "LinkedIn", "title": "Partner news (to confirm)", "spec": "LinkedIn post", "status": "Posted", "row_id": "W02-01"},
+    {"date": "2027-01-14", "ampm": "", "content_type": "Poll", "channel": "LinkedIn", "title": "Which report do you dread most?", "spec": "LinkedIn poll", "status": "Posted", "row_id": "W02-02"},
+    {"date": "2028-01-13", "ampm": "", "content_type": "Customer Proof", "channel": "LinkedIn", "title": "Customer story (to confirm)", "spec": "LinkedIn post", "status": "Proposed"},
+    {"date": "2028-01-13", "ampm": "", "content_type": "Industry POV", "channel": "LinkedIn", "title": "Baselines beat benchmarks", "spec": "LinkedIn post", "status": "Fallback post", "row_id": "W02-04-FB"},
+    {"date": "2028-01-11", "ampm": "", "content_type": "Partner recruitment", "channel": "LinkedIn", "title": "Looking for metering installers", "spec": "LinkedIn post", "status": "Proposed"},
+    {"date": "2028-01-14", "ampm": "", "content_type": "Advisory board announcement", "channel": "LinkedIn", "title": "Welcoming our advisory board", "spec": "LinkedIn post", "status": "Proposed"}
+  ]
+}

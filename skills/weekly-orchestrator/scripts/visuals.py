@@ -20,7 +20,8 @@ Config (workspace.json, all optional):
 Rules:
 - An assets file ("Use: <file> (<asset prefix>/<subfolder>)") must exist in assets.txt and must not be
   the visual of any other calendar row dated within the window either side (Visual column, or a
-  "Visual:" in a fallback Notes line), or of another draft in this run. Real drafts are resolved
+  "Visual:" in a fallback Notes line), or of another draft in this run. Fallback post rows count like
+  any row; Cancelled and Backlog rows do not. Real drafts are resolved
   first, by date, then fallbacks, so a fallback never takes a file from a real draft. A draft that
   clashes moves to its first free visual_alternatives entry, else to its image prompt (when an AI
   image tool is set). Real-photo content types never move to an AI image: they are reported unresolved.
@@ -97,6 +98,18 @@ def load(p):
     return v.get("values", v) if isinstance(v, dict) else v
 
 
+def skip_statuses(cfg):
+    """Cancelled and Backlog labels (rows a person took off the plan): their visuals do not count."""
+    sts = cfg_get(cfg, "calendar.statuses", None)
+    if isinstance(sts, dict):
+        return (sts.get("Cancelled", "Cancelled"), sts.get("Backlog", "Backlog"))
+    if isinstance(sts, list) and len(sts) == 6 and "Cancelled" not in sts:
+        return (sts[5], "Backlog")  # a six-value status list
+    if isinstance(sts, list) and len(sts) == 8 and "Cancelled" not in sts:
+        return (sts[6], sts[7])
+    return ("Cancelled", "Backlog")
+
+
 def parse_date(s):
     for f in ("%a %d %b %y", "%d %b %y", "%Y-%m-%d"):
         try:
@@ -153,8 +166,7 @@ def main(argv):
     cal_v = load(pos[0])
     assets = {os.path.basename(l.strip()).lower() for l in open(pos[1], encoding="utf-8") if l.strip()}
     hdr = cal_v[0]
-    sts = cfg_get(cfg, "calendar.statuses", None)
-    cancelled = sts[5] if isinstance(sts, list) and len(sts) == 6 else (sts.get("Cancelled", "Cancelled") if isinstance(sts, dict) else "Cancelled")
+    skip = skip_statuses(cfg)
     cal = []
     for r in cal_v[1:]:
         r = list(r) + [""] * (len(hdr) - len(r))
@@ -188,7 +200,7 @@ def main(argv):
         d, rid, dt = x["d"], x["row_id"], x["date"]
         used = {}
         for r in cal:
-            if r.get("Row ID") == rid or r.get("Status") == cancelled or not window(dt, r["_date"]):
+            if r.get("Row ID") == rid or r.get("Status") in skip or not window(dt, r["_date"]):
                 continue
             for f in files_of(calendar_visuals(r)):
                 used.setdefault(f, r.get("Row ID"))
@@ -240,7 +252,7 @@ def main(argv):
         if subj and tool:
             like = None
             for r in cal:
-                if r.get("Row ID") != rid and r.get("Status") != cancelled and window(dt, r["_date"]):
+                if r.get("Row ID") != rid and r.get("Status") not in skip and window(dt, r["_date"]):
                     for o in subjects_of(calendar_visuals(r)):
                         if similar(subj, o):
                             like = like or r.get("Row ID")

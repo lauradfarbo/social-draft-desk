@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Proof checks for a Partner Win or Customer Proof draft. Run after check_draft.py.
+"""Proof checks for a proof post (Partner Win, Customer Proof, Advisory board announcement). Run after check_draft.py.
 
 Usage:
   python3 check_proof_post.py draft.json proof_item.json --config workspace.json [--facts facts.json] [--live]
@@ -7,20 +7,26 @@ Usage:
 draft.json: same file as for check_draft.py ("post", "first_comment", "type").
 proof_item.json: the proof log row as an object with the proof log headers as keys.
 workspace.json: the client config. Uses company.name, company.people,
-  company.people_first_mention and calendar.proof_types.
+  company.people_first_mention, calendar.proof_types (default Partner, Customer, Advisor),
+  proof.approver_word_is_signoff (default false) and proof.not_signed_off_values
+  (default ["No", "Pending"]).
 facts.json (optional): approved facts ([{"id","claim"}] or the facts sheet). Capitalized
   words in approved claims count as known, so product names do not raise name warnings.
 --live: the draft is for the live calendar.
 
 Fails:
-- The proof item is not signed off (Sign-off status must be Yes).
+- The proof item is not signed off. With proof.approver_word_is_signoff false (the default),
+  Sign-off status must be Yes. With it true, the item fails only when Sign-off status is in
+  proof.not_signed_off_values (a blank status counts as signed off).
 - The proof item Type is not a key of calendar.proof_types.
-- The organization is not named exactly as in the proof log.
+- The organization is not named exactly as in the proof log (Advisor: the person and the
+  organization, from "<person>, <organization>").
 - Text in quotation marks that is not the approved quote, word for word.
 - The approved quote is used without its attribution as written in the proof log.
 - A TEST item (Organization ending in "(TEST ...)") reaches a live draft (--live).
 Warnings:
-- Figures in the post that do not appear in What happened (they must map to a fact ID).
+- Figures in the post that do not appear in What happened or the quote (they must map to a
+  fact ID). Text in [square brackets] is a gap, not a figure; "2" and "02" are the same number.
 - Capitalized words that are not in the proof item, the company name, company.people or
   approved facts: check they are not names.
 """
@@ -33,6 +39,31 @@ ALWAYS_KNOWN = {"LinkedIn", "The", "This", "That", "These", "Those", "We", "Our"
                 "For", "With", "Link", "Read", "Join", "Find", "Today", "Monday", "Tuesday",
                 "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 TEST_MARK = re.compile(r"\s*\(TEST\b[^)]*\)\s*$", re.I)
+
+
+DEFAULT_PROOF_TYPES = {"Partner": "Partner Win", "Customer": "Customer Proof",
+                       "Advisor": "Advisory board announcement"}
+
+
+def signed_off(item, cfg):
+    """Return (ok, reason) for the proof item's sign-off under the config's sign-off rule."""
+    pc = cfg.get("proof", {}) or {}
+    raw = str(item.get("Sign-off status", "") or "").strip()
+    if pc.get("approver_word_is_signoff") is True:
+        bad = [str(v).strip().lower() for v in (pc.get("not_signed_off_values") or ["No", "Pending"])]
+        if raw.lower() in bad:
+            return False, f"Sign-off status is {raw or 'blank'}"
+        return True, ""
+    if raw.lower() != "yes":
+        return False, "Sign-off status must be Yes"
+    return True, ""
+
+
+def norm_num(tok):
+    """'02' and '2' are the same number."""
+    t = re.sub(r"[,\s]", "", tok).lower()
+    m = re.fullmatch(r"(\d+)(.*)", t)
+    return (m.group(1).lstrip("0") or "0") + m.group(2) if m else t
 
 
 def split_quote(q):
@@ -69,13 +100,13 @@ def main(argv):
     cfg = json.load(open(arg_value(argv, "--config"), encoding="utf-8"))
     live = "--live" in argv
     company = cfg.get("company", {}) or {}
-    proof_types = (cfg.get("calendar", {}) or {}).get("proof_types") or {"Partner": "Partner Win",
-                                                                        "Customer": "Customer Proof"}
+    proof_types = (cfg.get("calendar", {}) or {}).get("proof_types") or DEFAULT_PROOF_TYPES
     post = d.get("post", "") or ""
     fails, warns = [], []
 
-    if str(item.get("Sign-off status", "")).strip().lower() != "yes":
-        fails.append("Proof item is not signed off (Sign-off status must be Yes). Do not draft.")
+    ok, why = signed_off(item, cfg)
+    if not ok:
+        fails.append(f"Proof item is not signed off ({why}). Do not draft.")
     typ = str(item.get("Type", "")).strip().lower()
     if typ not in {k.lower() for k in proof_types}:
         fails.append(f"Proof item Type '{item.get('Type', '')}' is not one of: {', '.join(proof_types)}.")
@@ -84,6 +115,11 @@ def main(argv):
     org_name = TEST_MARK.sub("", org)
     if not org_name:
         fails.append("Proof item has no Organization.")
+    elif typ == "advisor" and "," in org_name:
+        # Advisor items read "<person>, <organization>": both parts must appear exactly.
+        for part in [x.strip() for x in org_name.split(",", 1)]:
+            if part and part not in post:
+                fails.append(f"Advisor or organization not named exactly as in the proof log: '{part}'.")
     elif org_name not in post:
         fails.append(f"Organization not named exactly as in the proof log: '{org_name}'.")
     if live and TEST_MARK.search(org):
@@ -98,9 +134,10 @@ def main(argv):
         fails.append(f"Approved quote used without its attribution: '{attribution}'.")
 
     happened = str(item.get("What happened", ""))
-    for n in re.findall(r"\d+(?:[.,]\d+)?\s*%?", post):
+    source_nums = {norm_num(x) for x in re.findall(r"\d+(?:[.,]\d+)?\s*%?", happened + " " + quote)}
+    for n in re.findall(r"\d+(?:[.,]\d+)?\s*%?", re.sub(r"\[[^\]]*\]", " ", post)):
         n = n.strip()
-        if n and n not in happened and n not in quote:
+        if n and norm_num(n) not in source_nums:
             warns.append(f"Figure '{n}' is not in What happened: it must map to a fact ID or be removed.")
 
     people = list(company.get("people") or []) + list((company.get("people_first_mention") or {}).values())

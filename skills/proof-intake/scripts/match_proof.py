@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Match proof log items to proof slots (for example Partner Win and Customer Proof) on the calendar.
+"""Match proof log items to proof slots (Partner Win, Customer Proof, Advisory board announcement) on the calendar.
 
 Usage:
-  python3 match_proof.py calendar.json proof_log.json --config workspace.json [--as-of YYYY-MM-DD] [--horizon 14] [--shadow]
+  python3 match_proof.py calendar.json proof_log.json --config workspace.json [--as-of YYYY-MM-DD]
+      [--horizon 14] [--advisor-days N] [--shadow]
 
 calendar.json: the Calendar tab as {"values": [[headers], ...]} (A1:V), header row first.
 proof_log.json: the Proof log tab (A1:J), header row first.
-workspace.json: the client config. Uses calendar.proof_types (proof log Type to content type),
-  calendar.proof_placeholders (placeholder titles), run.swap_days (default 5) and
-  company.approver.name (whose notes on a slot are conditions).
+workspace.json: the client config. Uses calendar.proof_types (proof log Type to content type;
+  default Partner, Customer and Advisor), calendar.proof_placeholders (placeholder titles),
+  run.swap_days (default 5), company.approver.name (whose notes on a slot are conditions),
+  proof.approver_word_is_signoff (default false), proof.not_signed_off_values (default
+  ["No", "Pending"]) and proof.advisor_horizon_days (default 91; --advisor-days overrides).
 --as-of: run date. Defaults to today. Use only for tests.
 --shadow: shadow mode. Slots are proof rows with any Status except Proposed or Cancelled, and the
   Proof item cell may be filled. A slot whose proof item a person already chose (row number in
@@ -18,14 +21,26 @@ workspace.json: the client config. Uses calendar.proof_types (proof log Type to 
 
 Prints a JSON plan. It writes nothing; the skill acts on the plan.
 Rules:
-- An item is usable when Sign-off status is Yes, Organization, What happened and Sign-off from are
-  filled, Can go public from is a date on or before the slot date, and "Used in calendar row" is empty.
+- Sign-off, with proof.approver_word_is_signoff false (the default): an item is signed off only when
+  Sign-off status is Yes, and Sign-off from and Can go public from must be filled.
+- Sign-off, with proof.approver_word_is_signoff true: an item is signed off unless Sign-off status is
+  in proof.not_signed_off_values. A blank Sign-off from counts as Logged by; a blank Can go public
+  from counts as Date logged (or the run date). Such items carry "implied": true, and the draft's
+  reviewer notes ask the approver to confirm the organization is happy to be named.
+- An item is usable when it is signed off, Organization and What happened are filled, it is public
+  on or before the slot date, and "Used in calendar row" is empty.
+- Type Advisor fills Planned Advisory board announcement rows in date order, up to the advisor
+  horizon, so a series gets its people in order. Those rows are drafted by the short-form drafter
+  ("drafter": "short-form-drafter") with the item as a person item. An advisory row with no item is
+  "no_item": the drafter writes a base draft with the advisor's details as [bracketed] gaps. No flag,
+  no swap.
 - A quote is usable only if it carries an attribution after it (dash, comma or brackets).
 - Slots are Planned rows whose Content type is a proof type, Proof item (R) empty, dated from the
-  run date to run date + horizon days. Cancelled rows are never slots and never reported.
+  run date to run date + horizon days. Cancelled and Backlog rows are never slots and never reported.
 - Slots are filled in date order with the earliest-logged usable item of the matching type.
 - Each slot reports title_placeholder: true when Title / angle still holds the configured placeholder.
-- A pending item reports signoff_cutoff (slot date minus swap_days) and cutoff_passed.
+- A pending item reports signoff_cutoff (slot date minus swap_days), cutoff_passed and late_cutoff
+  (slot date minus 2 days, or the run date if later: the last day a late sign-off can still be drafted).
 - already_flagged: the slot's Notes already hold a Proof intake note naming every relevant item
   (and, for a pending item past its cut-off, saying so), and no swap is newly due.
 - An unfilled slot is flagged. A swap is proposed when the slot is swap_days away or fewer,
@@ -36,7 +51,32 @@ import re
 import sys
 from datetime import date, datetime, timedelta
 
-DEFAULT_PROOF_TYPES = {"Partner": "Partner Win", "Customer": "Customer Proof"}
+DEFAULT_PROOF_TYPES = {"Partner": "Partner Win", "Customer": "Customer Proof",
+                       "Advisor": "Advisory board announcement"}
+SKIP_STATUSES = ("Cancelled", "Backlog")
+
+
+def effective(it, as_of, word_is_signoff, not_signed):
+    """Return (signoff, public_from, signed_by, implied, issues) under the config's sign-off rule.
+    signoff is "Yes", "No", or the raw waiting value (or "Blank")."""
+    raw = str(it.get("Sign-off status", "") or "").strip()
+    cap = raw.capitalize()
+    named = str(it.get("Sign-off from (name)", "") or "").strip()
+    logged_by = str(it.get("Logged by", "") or "").strip()
+    pub_raw = parse_date(it.get("Can go public from", ""))
+    issues = []
+    if word_is_signoff:
+        if raw.lower() in not_signed:
+            return ("No" if raw.lower() == "no" else cap or "Blank"), pub_raw, named, False, issues
+        pub = pub_raw or parse_date(it.get("Date logged", "")) or as_of
+        implied = cap != "Yes" or not named or not pub_raw
+        return "Yes", pub, named or logged_by or "the team", implied, issues
+    if cap == "Yes":
+        if not named:
+            issues.append("Sign-off from (name) is empty")
+        if not pub_raw:
+            issues.append("Can go public from is missing or not a date")
+    return (cap or "Blank"), pub_raw, named, False, issues
 
 
 def parse_date(s):
@@ -96,6 +136,11 @@ def main(argv):
     swap_days = int((cfg.get("run", {}) or {}).get("swap_days", 5))
     approver = str(((cfg.get("company", {}) or {}).get("approver", {}) or {}).get("name", "")).strip()
     approver_first = approver.split()[0] if approver else ""
+    pc = cfg.get("proof", {}) or {}
+    word_is_signoff = pc.get("approver_word_is_signoff") is True
+    not_signed = [str(v).strip().lower() for v in (pc.get("not_signed_off_values") or ["No", "Pending"])]
+    advisor_days = int(pc.get("advisor_horizon_days", 91))
+    advisor_type = next((v for k, v in proof_types.items() if k.strip().lower() == "advisor"), None)
 
     as_of = date.today()
     horizon = 14
@@ -103,6 +148,8 @@ def main(argv):
         as_of = datetime.strptime(arg_value(argv, "--as-of"), "%Y-%m-%d").date()
     if arg_value(argv, "--horizon"):
         horizon = int(arg_value(argv, "--horizon"))
+    if arg_value(argv, "--advisor-days"):
+        advisor_days = int(arg_value(argv, "--advisor-days"))
     shadow = "--shadow" in argv
     cal = rows_as_dicts(json.load(open(cal_path, encoding="utf-8")))
     log = rows_as_dicts(json.load(open(log_path, encoding="utf-8")))
@@ -112,8 +159,7 @@ def main(argv):
         if not any(str(v).strip() for k, v in it.items() if k != "_row"):
             continue
         typ = type_map.get(it.get("Type", "").strip().lower())
-        pub = parse_date(it.get("Can go public from", ""))
-        signoff = it.get("Sign-off status", "").strip().capitalize()
+        signoff, pub, signed_by, implied, s_issues = effective(it, as_of, word_is_signoff, not_signed)
         used = it.get("Used in calendar row (agent fills)", "").strip()
         q_ok, q_issue = quote_ok(it.get("Approved quote (verbatim)", ""))
         issues = []
@@ -124,13 +170,11 @@ def main(argv):
                 issues.append("Organization is empty")
             if not it.get("What happened", "").strip():
                 issues.append("What happened is empty")
-            if not it.get("Sign-off from (name)", "").strip():
-                issues.append("Sign-off from (name) is empty")
-            if not pub:
-                issues.append("Can go public from is missing or not a date")
+            issues += s_issues
         items.append({
             "proof_row": it["_row"], "type": typ, "organization": it.get("Organization", ""),
             "signoff": signoff or "Blank", "public_from": pub, "used": used,
+            "signed_by": signed_by, "implied": implied,
             "quote_usable": q_ok, "quote_issue": q_issue, "issues": issues,
             "logged": parse_date(it.get("Date logged", "")) or date.max,
         })
@@ -145,11 +189,12 @@ def main(argv):
             continue
         status = r.get("Status", "").strip()
         if shadow:
-            if status in ("Proposed", "Cancelled", ""):
+            if status in ("Proposed", "") + SKIP_STATUSES:
                 continue
         elif status != "Planned" or r.get("Proof item", "").strip():
             continue
-        if as_of <= d <= as_of + timedelta(days=horizon):
+        h = advisor_days if advisor_type and r["Content type"].strip() == advisor_type else horizon
+        if as_of <= d <= as_of + timedelta(days=h):
             m = re.search(r"range=[A-Z]+(\d+)|\brow (\d+)", r.get("Proof item", ""), re.I)
             chosen = int(m.group(1) or m.group(2)) if m else None
             slots.append({"row": r["_row"], "row_id": r.get("Row ID", ""), "date": d,
@@ -191,8 +236,14 @@ def main(argv):
             c = cands[0]
             taken.add(c["proof_row"])
             entry.update(action="draft", proof_row=c["proof_row"], organization=c["organization"],
-                         use_quote=c["quote_usable"], public_from=fmt(c["public_from"]),
+                         use_quote=c["quote_usable"], signed_by=c["signed_by"], implied_signoff=c["implied"],
+                         drafter="short-form-drafter" if s["type"] == advisor_type else "proof-intake",
+                         public_from=fmt(c["public_from"]),
                          do_not_post_before=fmt(c["public_from"]) if c["public_from"] > as_of else "")
+        elif advisor_type and s["type"] == advisor_type and not chosen_by_person:
+            # No advisor logged yet: not a proof gap. The drafter writes a base draft with the
+            # advisor's details as [bracketed] gaps. No flag, no swap.
+            entry.update(action="no_item", drafter="short-form-drafter")
         elif chosen_by_person:
             c = chosen_by_person[0]
             entry.update(action="flag", propose_swap=False, already_flagged=False, signoff_no=[], pending=[],
@@ -226,7 +277,8 @@ def main(argv):
                 already_flagged=already,
                 signoff_no=[{"proof_row": i["proof_row"], "organization": i["organization"]} for i in no_items] if first_no else [],
                 pending=[{"proof_row": i["proof_row"], "organization": i["organization"], "signoff": i["signoff"],
-                          "signoff_cutoff": fmt(cutoff), "cutoff_passed": cutoff_passed} for i in waiting],
+                          "signoff_cutoff": fmt(cutoff), "cutoff_passed": cutoff_passed,
+                          "late_cutoff": fmt(max(s["date"] - timedelta(days=2), as_of))} for i in waiting],
                 public_after_slot=[{"proof_row": i["proof_row"], "organization": i["organization"],
                                     "public_from": fmt(i["public_from"])} for i in later],
             )
@@ -249,6 +301,8 @@ def main(argv):
                for i in items if i["signoff"] == "No" and not i["used"]]
 
     out = {"mode": "shadow" if shadow else "normal", "as_of": fmt(as_of), "horizon_days": horizon,
+           "advisor_horizon_days": advisor_days,
+           "signoff_rule": "approver_word" if word_is_signoff else "status_yes_only",
            "swap_days": swap_days, "slots": plan, "signed_off_waiting": waiting_items,
            "mark_not_used_signoff_no": mark_no, "proof_log_problems": problems}
     print(json.dumps(out, indent=2, ensure_ascii=False))

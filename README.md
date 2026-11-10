@@ -1,12 +1,22 @@
-# Lean GTM Agents
+# Social Draft Desk
 
-AI agents that run go-to-market for founder-led teams with no marketing hire. Built, tested and packaged as an installable Claude plugin.
+Runs your weekly LinkedIn calendar, drafts every post and learns from your edits. You approve and post. For founder-led teams with no marketing hire. Packaged as an installable Claude plugin.
 
 ## Who this is for
 
 Early-stage founders and scaleups with two to ten people, a warm audience that needs to stay warm, and nobody whose job is marketing. The founders already know what to say. What they lack is the time to plan it, write it, check it and keep it consistent every week.
 
-These agents take on the recurring work. A person still approves everything that leaves the building.
+Social Draft Desk does the work a social media assistant would do. A person still approves everything that leaves the building.
+
+## What it does
+
+- **Keeps the calendar.** Builds a rolling 13-week content calendar from your approved plan and proposes new rows each month, for milestones and from your ideas.
+- **Drafts every post.** Each week it drafts the posts due in the next two weeks from your approved facts and voice guide. A missing detail becomes a [bracketed] gap for you to fill, never an invented claim.
+- **Checks every draft.** A separate compliance checker reviews each draft against your rules before it reaches you.
+- **Takes direction in plain words.** Write what you want in a row's Notes or edit the row directly; the next run makes the change.
+- **Learns from your edits.** Edits you make to drafts are logged, the drafters write the way you edit, and once a month it proposes voice guide changes for you to approve.
+- **Runs every week once scheduled.** Setup writes two scheduled tasks: a full run once a week and a short requests run on weekdays. You can also run it by hand at any time.
+- **Never publishes.** It drafts, checks and flags. You post.
 
 ## Design principles
 
@@ -20,7 +30,7 @@ These agents take on the recurring work. A person still approves everything that
 
 ## Quick start
 
-1. Install the plugin. In Claude Code: `/plugin marketplace add lauradfarbo/lean-gtm-agents`, then `/plugin install lean-gtm-agents@lean-gtm-agents`. In Cowork: upload a zip of this repo as a plugin.
+1. Install the plugin. In Claude Code: `/plugin marketplace add lauradfarbo/social-draft-desk`, then `/plugin install social-draft-desk@social-draft-desk`. In Cowork: upload a zip of this repo as a plugin.
 2. Connect the connectors for where your material lives (Google Drive, Docs and Sheets are the tested path).
 3. Run `/setup-workspace`. It asks where your calendar, rules, voice guide, facts sheet, proof log, long-form source, assets and folders are, checks each one, and saves `workspace.json` in your own workspace.
 4. No voice guide yet? Ask for the `brand-voice-guide` skill. No calendar yet? Ask the `calendar-builder` skill to convert your approved content plan.
@@ -33,7 +43,7 @@ These agents take on the recurring work. A person still approves everything that
 | `workspace-setup` (`/setup-workspace`) | Skill and command | Opening interview that points every agent at the client's sources and writes `workspace.json` |
 | `brand-voice-guide` | Skill | Builds the voice guide every drafting agent writes against |
 | `calendar-builder` | Skill | Converts an approved plan into a rolling 13-week calendar sheet; adds monthly, milestone and idea rows as proposals |
-| `weekly-orchestrator` (`/weekly-run`) | Skill and command | The weekly run: select rows, plan check, draft, check, redraft once, write, verify, brief |
+| `weekly-orchestrator` (`/weekly-run`) | Skill and command | The weekly full run (select rows, plan check, draft, check, redraft once, write, verify, brief) and the light weekday requests run |
 | `planner` | Subagent | Checks the next four weeks against the plan rules and returns notes and risks |
 | `short-form-drafter`, `drafter` | Skill and subagent | Drafts one LinkedIn post per calendar row from approved facts |
 | `proof-intake`, `proof-drafter` | Skill and subagent | Fills partner and customer slots only from signed-off proof; flags and proposes swaps otherwise |
@@ -42,19 +52,23 @@ These agents take on the recurring work. A person still approves everything that
 ## How a weekly run works
 
 ```
-/weekly-run
+/weekly-run <test|live>              full run, once a week
   1  load workspace.json, validate it, stop on errors
-  2  same-day and missed-run check
+  2  same-day and missed-run check (a second run that day becomes a requests run)
   3  calendar builder: monthly, milestone and ideas runs (proposals only)
-  4  snapshot every source to local files
-  5  select rows due in the next two plan weeks
-  6  planner and proof match                     (subagent, read-only)
-  7  one drafter per row, swaps and fallbacks    (subagents, read-only)
-  8  one compliance checker per draft            (subagents, read-only)
-  9  one redraft for any failure, then flag
- 10  write draft tabs, then calendar cells through the column lock and Row ID guard
- 11  read back and verify
- 12  one-page brief for the approver
+  4  act on asks in Notes and on the Ideas tab; file the approver's facts
+  5  Backlog moves, hand edits since the last snapshot, series shifts
+  6  snapshot every source to local files; select rows due in the next two plan weeks
+  7  planner and proof match                       (subagent, read-only)
+  8  one drafter per row, swaps and backup rows    (subagents, read-only)
+  9  one compliance checker per draft              (subagents, read-only)
+ 10  one redraft for any failure, then flag
+ 11  write draft tabs, then calendar cells through the column lock and Row ID guard
+ 12  read back and verify; tidy Notes; sort; hide Cancelled rows; save the snapshot
+ 13  one-page brief for the approver
+
+/weekly-run <test|live> requests     light weekday run: only asks, hand edits, new ideas,
+                                     Backlog moves and series shifts; a short update if anything changed
 ```
 
 ## Where client material can live
@@ -68,26 +82,24 @@ These agents take on the recurring work. A person still approves everything that
 
 Details: [docs/workspace-config.md](docs/workspace-config.md).
 
-## Work streams
+## Built and planned
 
 | Stream | What the agent does | Status |
 | --- | --- | --- |
 | Setup | Points every agent at the client's sources | Built: `workspace-setup` |
 | Brand voice | Builds the voice guide | Built: `brand-voice-guide` |
 | Content calendar | Rolling 13-week calendar, proposals only | Built: `calendar-builder` |
-| Content execution | Weekly plan check, drafts, proof posts, compliance check, brief | Built: `weekly-orchestrator` and agents |
-| Repurposing | Turns long-form assets into posts, scripts and newsletter sections | Planned |
+| LinkedIn drafting | Weekly plan check, drafts, proof posts, compliance check, brief, learning from edits | Built: `weekly-orchestrator` and agents |
+| Repurposing | Turns long-form assets into posts and video scripts | Planned |
 | Social listening | Finds conversations and drafts comment suggestions for a person to post | Planned |
-| CRM hygiene | Enriches and de-duplicates a warm contact list | Planned |
-| Newsletter | Drafts a periodic newsletter to warm contacts | Planned, depends on CRM hygiene |
-| LLM visibility | Audits site and blog structure so content surfaces in AI answers | Planned |
+| More channels | Drafts for other social channels from the same calendar | Planned |
 
 Automated LinkedIn prospecting is deliberately excluded. Automating connection requests puts the founder's account at risk.
 
 ## Repository layout
 
 ```
-lean-gtm-agents/
+social-draft-desk/
   .claude-plugin/plugin.json
   commands/            /setup-workspace, /weekly-run
   agents/              planner, drafter, proof-drafter, compliance-checker
@@ -99,7 +111,8 @@ lean-gtm-agents/
     proof-intake/      proof rules, matching and proof checks
     weekly-orchestrator/ run steps, brief format, shadow mode, bundle scripts
   templates/           workspace.example.json, chapter-map.md
-  docs/                agent standards, workspace config reference
+  docs/                agent standards, workspace config, runbook, troubleshooting,
+                       change guide, go-live checklist
   tests/               fictional fixtures and test scripts
 ```
 
@@ -110,6 +123,7 @@ bash tests/test_workspace.sh
 bash tests/test_calendar.sh
 bash tests/test_drafting.sh
 bash tests/test_orchestrator.sh
+bash tests/test_orchestrator_new.sh
 ```
 
 All fixtures use Brightwell Analytics, a fictional company. Python 3 standard library only, except the offline calendar builder (openpyxl).

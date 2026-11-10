@@ -23,12 +23,28 @@
     "LinkedIn"
   ],
   "run": {
+    "full_run": {
+      "weekday": "Monday",
+      "time": "12:30"
+    },
+    "requests_runs": {
+      "weekdays": [
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday"
+      ],
+      "time": "06:00"
+    },
     "weekday": "Monday",
     "horizon_days": 13,
     "plan_check_weeks": 4,
     "swap_days": 5,
     "max_fallbacks": 4,
     "default_mode": "test"
+  },
+  "dates": {
+    "typed_order": "day_first"
   },
   "sources": {
     "rules": {
@@ -244,11 +260,13 @@
     "team_owned_regex": "Publish|Newsletter|Distribute",
     "proof_types": {
       "Partner": "Partner Win",
-      "Customer": "Customer Proof"
+      "Customer": "Customer Proof",
+      "Advisor": "Advisory board announcement"
     },
     "proof_placeholders": {
       "Partner Win": "Partner news (to confirm)",
-      "Customer Proof": "Customer story (to confirm)"
+      "Customer Proof": "Customer story (to confirm)",
+      "Advisory board announcement": "Advisory board announcement (advisor to confirm)"
     },
     "teaser_regex": "LinkedIn teaser",
     "event_live_regex": "\\b(live|recap)\\b",
@@ -256,9 +274,11 @@
       "Proposed",
       "Planned",
       "Draft ready",
+      "Fallback post",
       "Approved",
       "Posted",
-      "Cancelled"
+      "Cancelled",
+      "Backlog"
     ],
     "blog_id_regex": "^(Blog \\d+)",
     "formula_columns": [
@@ -267,9 +287,70 @@
     ],
     "content_type_aliases": {
       "Report push": "Guide push"
+    },
+    "week_numbering": "iso",
+    "alternation_anchor_week": {
+      "year": 2026,
+      "week": 1
+    },
+    "agent_statuses": [
+      "Proposed",
+      "Draft ready",
+      "Fallback post"
+    ],
+    "request_columns": [
+      "Date",
+      "What to post",
+      "Pillar",
+      "Channel",
+      "Title / angle",
+      "Content type",
+      "Spec"
+    ],
+    "tabs": {
+      "calendar": "Calendar",
+      "backlog": "Backlog",
+      "ideas": "Ideas",
+      "milestones": "Milestones",
+      "approver_notes": "From the approver's notes",
+      "agent_log": "Agent log",
+      "approver_edits": "Approver edits",
+      "agent_snapshot": "Agent snapshot",
+      "this_week": "This Week",
+      "how_to_use": "How to use"
     }
   },
+  "requests": {
+    "enabled": true,
+    "from": [
+      "approver"
+    ],
+    "series_drop_word": "drop",
+    "hold_lift_word": "CONFIRMED"
+  },
+  "notes": {
+    "agent_prefix": "Agents",
+    "agent_lines_kept": 1
+  },
+  "proof": {
+    "approver_word_is_signoff": false,
+    "not_signed_off_values": [
+      "No",
+      "Pending"
+    ],
+    "advisor_horizon_days": 91
+  },
+  "edit_learning": {
+    "enabled": true,
+    "examples_per_draft": 3,
+    "monthly_proposals_max": 5,
+    "min_supporting_edits": 2
+  },
+  "series": {
+    "draft_within_days": 14
+  },
   "plan": {
+    "precedence": "dated_events_first",
     "week1_monday": "2026-03-02",
     "known_deviations": [],
     "posts_per_week": [
@@ -304,7 +385,8 @@
         "deadline": "2026-03-23",
         "label": "webinar topic",
         "hold_regex": "on hold",
-        "row_regex": "webinar|event announcement|live event"
+        "row_regex": "webinar|event announcement|live event",
+        "milestone_type": "Webinar"
       }
     ]
   },
